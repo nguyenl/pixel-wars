@@ -11,12 +11,17 @@
         overscroll-behavior: none;
         -webkit-user-select: none; user-select: none;
       }
-      #app { width: 100vw; height: 100vh; }
-      canvas { touch-action: none; }
+      #app { width: 100vw; height: 100vh; display: flex; flex-direction: column; }
+      #hud-bar { flex-shrink: 0; }
+      #game-area { flex: 1; overflow: hidden; border: 2px solid #444; }
+      canvas { display: block; touch-action: none; }
     </style>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <div id="hud-bar"></div>
+      <div id="game-area"></div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

@@ -11,13 +11,15 @@ import { applyAction } from '../game/state';
 import type { GameRenderer } from '../renderer/renderer';
 import type { UIRenderer } from '../renderer/ui';
 import type { SoundManager } from '../audio/sound';
-import { isTap, type ActivePointer } from './gesture';
+import { isTap, TAP_DISTANCE_THRESHOLD, type ActivePointer } from './gesture';
 
 type StateUpdater = (state: GameState) => void;
 
 export class InputHandler {
   private selectedUnitId: string | null = null;
   private reachableTiles: TileCoord[] = [];
+  private longPressTimer: ReturnType<typeof setTimeout> | null = null;
+  private longPressFired = false;
 
   constructor(
     private renderer: GameRenderer,
@@ -43,7 +45,7 @@ export class InputHandler {
   private setupCanvasClick(): void {
     const canvas = this.renderer.getApp().canvas as HTMLCanvasElement;
 
-    // Track pointer down for tap detection
+    // Track pointer down for tap detection + long-press tooltip
     canvas.addEventListener('pointerdown', (e) => {
       this.pendingPointer = {
         pointerId: e.pointerId,
@@ -53,22 +55,55 @@ export class InputHandler {
         currentX: e.clientX,
         currentY: e.clientY,
       };
+      this.longPressFired = false;
+
+      // Start long-press timer for touch tooltip (500ms)
+      if (e.pointerType !== 'mouse') {
+        if (this.longPressTimer) clearTimeout(this.longPressTimer);
+        const clientX = e.clientX;
+        const clientY = e.clientY;
+        this.longPressTimer = setTimeout(() => {
+          this.longPressTimer = null;
+          const state = this.getState();
+          const rect = canvas.getBoundingClientRect();
+          const offset = this.renderer.getWorldOffset();
+          const tileSize = this.renderer.getTileSize();
+          const zoom = this.renderer.getZoom();
+          const worldX = (clientX - rect.left - offset.x) / zoom;
+          const worldY = (clientY - rect.top - offset.y) / zoom;
+          const col = Math.floor(worldX / tileSize);
+          const row = Math.floor(worldY / tileSize);
+          const tileId = `${row},${col}`;
+          const tile = state.tiles[tileId];
+          const humanFog = state.fog[this.humanPlayerId];
+          if (tile?.unitId && humanFog[tileId] === 'visible') {
+            const unit = state.units[tile.unitId];
+            if (unit) {
+              this.longPressFired = true;
+              this.ui.showTooltip(unit, clientX, clientY);
+            }
+          }
+        }, 500);
+      }
     });
 
     canvas.addEventListener('pointermove', (e) => {
       if (this.pendingPointer && e.pointerId === this.pendingPointer.pointerId) {
         this.pendingPointer.currentX = e.clientX;
         this.pendingPointer.currentY = e.clientY;
+
+        // Cancel long-press if pointer moves too far
+        if (this.longPressTimer) {
+          const dx = e.clientX - this.pendingPointer.startX;
+          const dy = e.clientY - this.pendingPointer.startY;
+          if (Math.sqrt(dx * dx + dy * dy) > TAP_DISTANCE_THRESHOLD) {
+            clearTimeout(this.longPressTimer);
+            this.longPressTimer = null;
+          }
+        }
       }
 
-      // Hover highlight — only for mouse pointer
-      if (e.pointerType !== 'mouse') return;
       const state = this.getState();
-      if (state.phase === 'ai' || this.selectedUnitId === null) {
-        this.renderer.setHoverCoord(null);
-        return;
-      }
-
       const rect = canvas.getBoundingClientRect();
       const offset = this.renderer.getWorldOffset();
       const tileSize = this.renderer.getTileSize();
@@ -78,6 +113,37 @@ export class InputHandler {
 
       const mapW = state.mapSize.cols * tileSize;
       const mapH = state.mapSize.rows * tileSize;
+
+      // Mouse hover tooltip — check for unit under cursor
+      if (e.pointerType === 'mouse') {
+        if (worldX >= 0 && worldY >= 0 && worldX < mapW && worldY < mapH) {
+          const col = Math.floor(worldX / tileSize);
+          const row = Math.floor(worldY / tileSize);
+          const tileId = `${row},${col}`;
+          const tile = state.tiles[tileId];
+          const humanFog = state.fog[this.humanPlayerId];
+          if (tile?.unitId && humanFog[tileId] === 'visible') {
+            const unit = state.units[tile.unitId];
+            if (unit) {
+              this.ui.showTooltip(unit, e.clientX, e.clientY);
+            } else {
+              this.ui.hideTooltip();
+            }
+          } else {
+            this.ui.hideTooltip();
+          }
+        } else {
+          this.ui.hideTooltip();
+        }
+      }
+
+      // Hover highlight — only for mouse pointer with selected unit
+      if (e.pointerType !== 'mouse') return;
+      if (state.phase === 'ai' || this.selectedUnitId === null) {
+        this.renderer.setHoverCoord(null);
+        return;
+      }
+
       if (worldX < 0 || worldY < 0 || worldX >= mapW || worldY >= mapH) {
         this.renderer.setHoverCoord(null);
         return;
@@ -96,6 +162,17 @@ export class InputHandler {
       pointer.currentX = e.clientX;
       pointer.currentY = e.clientY;
       this.pendingPointer = null;
+
+      // Clear long-press timer and dismiss tooltip
+      if (this.longPressTimer) {
+        clearTimeout(this.longPressTimer);
+        this.longPressTimer = null;
+      }
+      if (this.longPressFired) {
+        this.ui.hideTooltip();
+        this.longPressFired = false;
+        return; // Don't process as tap
+      }
 
       // Only process taps (not drags/pinches)
       if (this.renderer.isDragging()) return;
@@ -123,6 +200,7 @@ export class InputHandler {
     canvas.addEventListener('pointerleave', (e) => {
       if (e.pointerType === 'mouse') {
         this.renderer.setHoverCoord(null);
+        this.ui.hideTooltip();
       }
     });
   }
@@ -235,8 +313,14 @@ export class InputHandler {
   }
 
   private doAttack(state: GameState, attackerUnitId: string, targetUnitId: string): void {
+    const attacker = state.units[attackerUnitId];
     const target = state.units[targetUnitId];
+    const attackerTile = attacker ? state.tiles[attacker.tileId] : null;
     const targetTile = target ? state.tiles[target.tileId] : null;
+
+    // Record pre-combat HP for damage number calculation
+    const preAttackerHp = attacker?.hp ?? 0;
+    const preTargetHp = target?.hp ?? 0;
 
     const result = applyAction(state, {
       type: 'attack',
@@ -244,9 +328,23 @@ export class InputHandler {
       targetUnitId,
     });
     if (result.ok && targetTile) {
+      // Compute damage dealt
+      const postTarget = result.state.units[targetUnitId];
+      const postAttacker = result.state.units[attackerUnitId];
+      const defenderDamage = preTargetHp - (postTarget?.hp ?? 0);
+      const attackerDamage = preAttackerHp - (postAttacker?.hp ?? 0);
+
       this.deselect();
       this.sound?.playAttack();
       this.renderer.animateAttack(attackerUnitId, targetTile.coord, () => {
+        // Show damage on defender
+        if (defenderDamage > 0 && targetTile.coord) {
+          this.renderer.showDamageNumber(targetTile.coord, defenderDamage, 0xff4444);
+        }
+        // Show counterattack damage on attacker
+        if (attackerDamage > 0 && attackerTile?.coord) {
+          this.renderer.showDamageNumber(attackerTile.coord, attackerDamage, 0xffaa44);
+        }
         this.onStateUpdate(result.state);
       });
     } else if (result.ok) {
