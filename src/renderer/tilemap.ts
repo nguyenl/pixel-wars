@@ -63,7 +63,7 @@ export class TilemapRenderer {
       const x = tile.coord.col * tileSize;
       const y = tile.coord.row * tileSize;
       g.clear();
-      g.rect(x, y, tileSize - 1, tileSize - 1);
+      g.rect(x, y, tileSize, tileSize);
       g.fill({ color: TERRAIN_COLORS[tile.terrain] });
       this.renderTerrainDetail(tile, g, x, y, tileSize);
     }
@@ -249,14 +249,14 @@ export class TilemapRenderer {
 
     for (const coord of reachable) {
       const g = new Graphics();
-      g.rect(coord.col * tileSize, coord.row * tileSize, tileSize - 1, tileSize - 1);
+      g.rect(coord.col * tileSize, coord.row * tileSize, tileSize, tileSize);
       g.fill({ color: HIGHLIGHT_MOVE_COLOR, alpha: 0.35 });
       this.highlightLayer.addChild(g);
     }
 
     for (const coord of attackable) {
       const g = new Graphics();
-      g.rect(coord.col * tileSize, coord.row * tileSize, tileSize - 1, tileSize - 1);
+      g.rect(coord.col * tileSize, coord.row * tileSize, tileSize, tileSize);
       g.fill({ color: HIGHLIGHT_ATTACK_COLOR, alpha: 0.4 });
       this.highlightLayer.addChild(g);
     }
@@ -267,12 +267,12 @@ export class TilemapRenderer {
       const isAttackable = attackable.some(c => c.row === hoverCoord.row && c.col === hoverCoord.col);
       if (isReachable) {
         const g = new Graphics();
-        g.rect(hoverCoord.col * tileSize, hoverCoord.row * tileSize, tileSize - 1, tileSize - 1);
+        g.rect(hoverCoord.col * tileSize, hoverCoord.row * tileSize, tileSize, tileSize);
         g.fill({ color: 0x88ccff, alpha: 0.55 });
         this.highlightLayer.addChild(g);
       } else if (isAttackable) {
         const g = new Graphics();
-        g.rect(hoverCoord.col * tileSize, hoverCoord.row * tileSize, tileSize - 1, tileSize - 1);
+        g.rect(hoverCoord.col * tileSize, hoverCoord.row * tileSize, tileSize, tileSize);
         g.fill({ color: 0xff8888, alpha: 0.55 });
         this.highlightLayer.addChild(g);
       }
