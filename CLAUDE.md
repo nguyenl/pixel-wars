@@ -11,6 +11,7 @@ Auto-generated from all feature plans. Last updated: 2026-03-16
 - TypeScript 5.x + pixi.js 8.x (rendering only — search is pure game logic), simplex-noise 4.x (map generation only) (006-alpha-beta-ai)
 - TypeScript 5.x + pixi.js 8.x (rendering), simplex-noise 4.x (map generation) (007-ai-visuals-upgrades)
 - TypeScript 5.x + pixi.js 8.x (rendering, Container transforms), no new dependencies required (008-map-pan-zoom-fix)
+- TypeScript 5.x + pixi.js 8.x, @pixi/tilemap 4.x, simplex-noise 4.x (009-readme-gh-pages)
 
 - TypeScript 5.x + PixiJS 8.x (`pixi.js`, `@pixi/tilemap`), `simplex-noise` 4.x (001-tile-strategy-game)
 
@@ -30,9 +31,9 @@ npm test && npm run lint
 TypeScript 5.x: Follow standard conventions
 
 ## Recent Changes
+- 009-readme-gh-pages: Added TypeScript 5.x + pixi.js 8.x, @pixi/tilemap 4.x, simplex-noise 4.x
 - 008-map-pan-zoom-fix: Added TypeScript 5.x + pixi.js 8.x (rendering, Container transforms), no new dependencies required
 - 007-ai-visuals-upgrades: Added TypeScript 5.x + pixi.js 8.x (rendering), simplex-noise 4.x (map generation)
-- 006-alpha-beta-ai: Added TypeScript 5.x + pixi.js 8.x (rendering only — search is pure game logic), simplex-noise 4.x (map generation only)
 
 
 <!-- MANUAL ADDITIONS START -->
