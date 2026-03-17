@@ -13,6 +13,7 @@ Auto-generated from all feature plans. Last updated: 2026-03-17
 - TypeScript 5.x + pixi.js 8.x (rendering, Container transforms), no new dependencies required (008-map-pan-zoom-fix)
 - TypeScript 5.x + pixi.js 8.x, @pixi/tilemap 4.x, simplex-noise 4.x (009-readme-gh-pages)
 - TypeScript 5.x + pixi.js 8.x (Graphics primitives for tile rendering) (011-remove-grid-lines)
+- TypeScript 5.x + pixi.js 8.x (rendering, Text/Container for damage numbers), DOM overlays (existing pattern for UI panels) (012-game-ui-enhancements)
 
 - TypeScript 5.x + PixiJS 8.x (`pixi.js`, `@pixi/tilemap`), `simplex-noise` 4.x (001-tile-strategy-game)
 
@@ -32,9 +33,9 @@ npm test && npm run lint
 TypeScript 5.x: Follow standard conventions
 
 ## Recent Changes
+- 012-game-ui-enhancements: Added TypeScript 5.x + pixi.js 8.x (rendering, Text/Container for damage numbers), DOM overlays (existing pattern for UI panels)
 - 011-remove-grid-lines: Added TypeScript 5.x + pixi.js 8.x (Graphics primitives for tile rendering)
 - 010-mobile-browser-support: Added TypeScript 5.x + pixi.js 8.x, @pixi/tilemap 4.x, simplex-noise 4.x
-- 009-readme-gh-pages: Added TypeScript 5.x + pixi.js 8.x, @pixi/tilemap 4.x, simplex-noise 4.x
 
 
 <!-- MANUAL ADDITIONS START -->

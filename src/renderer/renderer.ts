@@ -50,6 +50,8 @@ export class GameRenderer {
   private panStartY = 0;
   private viewportInitialized = false;
 
+  private resizeObserver: ResizeObserver | null = null;
+
   // Multi-touch pointer tracking
   private activePointers = new Map<number, ActivePointer>();
   private gestureMode: 'idle' | 'pending' | 'pan' | 'pinch' = 'idle';
@@ -77,9 +79,9 @@ export class GameRenderer {
       { alias: 'artillery', src: 'assets/sprites/units/artillery.png' },
     ]);
 
-    // Handle resize and orientation change
-    window.addEventListener('resize', () => this.onResize());
-    window.addEventListener('orientationchange', () => this.onResize());
+    // Handle resize via ResizeObserver (catches both window resize and HUD bar height changes)
+    this.resizeObserver = new ResizeObserver(() => this.onResize());
+    this.resizeObserver.observe(container);
 
     // Create world container for all game-world rendering
     this.worldContainer = new Container();
@@ -192,6 +194,39 @@ export class GameRenderer {
     this.unitsRenderer.animationController.playDeath(unitId, container, onComplete);
   }
 
+  showDamageNumber(tileCoord: TileCoord, damage: number, color: number = 0xff4444): void {
+    const x = tileCoord.col * TILE_SIZE + TILE_SIZE / 2;
+    const y = tileCoord.row * TILE_SIZE;
+    const style = new TextStyle({
+      fontFamily: 'monospace',
+      fontSize: 14,
+      fontWeight: 'bold',
+      fill: color,
+      stroke: { color: 0x000000, width: 3 },
+    });
+    const text = new Text({ text: `-${damage}`, style });
+    text.anchor.set(0.5);
+    text.position.set(x, y);
+    this.worldContainer.addChild(text);
+
+    const startY = y;
+    const duration = 800;
+    let elapsed = 0;
+
+    const tick = (ticker: { deltaMS: number }) => {
+      elapsed += ticker.deltaMS;
+      const t = Math.min(elapsed / duration, 1);
+      text.y = startY - t * 30;
+      text.alpha = 1 - t;
+      if (t >= 1) {
+        this.app.ticker.remove(tick);
+        this.worldContainer.removeChild(text);
+        text.destroy();
+      }
+    };
+    this.app.ticker.add(tick);
+  }
+
   showThinkingIndicator(): void {
     if (this.thinkingText) return;
     const style = new TextStyle({
@@ -230,6 +265,8 @@ export class GameRenderer {
   }
 
   destroy(): void {
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     this.hideThinkingIndicator();
     this.uiRenderer.destroy();
     this.app.destroy(true);

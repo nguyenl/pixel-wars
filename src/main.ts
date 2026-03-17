@@ -26,7 +26,7 @@ class Game {
   private aiWorker: Worker | null = null;
 
   async start(): Promise<void> {
-    const container = document.getElementById('app');
+    const container = document.getElementById('game-area');
     if (!container) throw new Error('#app element not found');
 
     this.renderer = new GameRenderer();
@@ -167,6 +167,7 @@ class Game {
     preUnits: Record<string, { hp: number }>,
   ): Promise<void> {
     const target = preUnits[action.targetUnitId];
+    const attacker = preUnits[action.attackerUnitId];
     const targetTile = this.state.tiles[
       Object.values(this.state.units).find(u => u.id === action.targetUnitId)?.tileId ?? ''
     ];
@@ -175,6 +176,17 @@ class Game {
     const targetDestroyed = !this.state.units[action.targetUnitId];
     // If the attacker no longer exists in state, it was destroyed (counterattack)
     const attackerDestroyed = !this.state.units[action.attackerUnitId];
+
+    // Compute damage for floating numbers
+    const postTarget = this.state.units[action.targetUnitId];
+    const postAttacker = this.state.units[action.attackerUnitId];
+    const defenderDamage = target ? target.hp - (postTarget?.hp ?? 0) : 0;
+    const attackerDamage = attacker ? attacker.hp - (postAttacker?.hp ?? 0) : 0;
+
+    // Find the attacker tile coord for counterattack damage display
+    const attackerTile = this.state.tiles[
+      Object.values(this.state.units).find(u => u.id === action.attackerUnitId)?.tileId ?? ''
+    ];
 
     return new Promise<void>((resolve) => {
       // Find the target tile coord from pre-action state
@@ -187,6 +199,14 @@ class Game {
       }
 
       this.renderer.animateAttack(action.attackerUnitId, targetCoord, () => {
+        // Show floating damage numbers
+        if (defenderDamage > 0) {
+          this.renderer.showDamageNumber(targetCoord, defenderDamage, 0xff4444);
+        }
+        if (attackerDamage > 0 && attackerTile?.coord) {
+          this.renderer.showDamageNumber(attackerTile.coord, attackerDamage, 0xffaa44);
+        }
+
         if (targetDestroyed) {
           this.renderer.animateDeath(action.targetUnitId, () => {
             this.render();
