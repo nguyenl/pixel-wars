@@ -7,6 +7,12 @@
 
 import type { GameState, PlayerId, MapSizeOption, UnitType, Settlement, Unit } from '../game/types';
 
+/** Apply mobile-friendly styles and event isolation to a UI panel. */
+function applyMobileStyles(el: HTMLElement): void {
+  el.style.cssText += ' -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;';
+  el.addEventListener('pointerdown', (e) => e.stopPropagation());
+}
+
 export class UIRenderer {
   private menuEl: HTMLElement | null = null;
   private hudEl: HTMLElement | null = null;
@@ -40,6 +46,7 @@ export class UIRenderer {
         <button data-size="large"  style="${MENU_BTN_STYLE}">Large<br><small>40×40</small></button>
       </div>
     `;
+    applyMobileStyles(el);
     el.querySelectorAll('button').forEach(btn => {
       btn.addEventListener('click', () => {
         const size = btn.dataset['size'] as MapSizeOption;
@@ -64,10 +71,15 @@ export class UIRenderer {
       const el = document.createElement('div');
       el.id = 'hud';
       el.style.cssText = `
-        position: fixed; top: 0; left: 0; right: 0; padding: 8px 16px;
+        position: fixed; top: env(safe-area-inset-top, 0px); left: 0; right: 0;
+        padding: 8px 16px;
+        padding-left: max(16px, env(safe-area-inset-left, 0px));
+        padding-right: max(16px, env(safe-area-inset-right, 0px));
         background: rgba(0,0,0,0.7); color: #fff; font-family: monospace;
         display: flex; gap: 2rem; align-items: center; z-index: 50;
+        -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
       `;
+      applyMobileStyles(el);
       document.body.appendChild(el);
       this.hudEl = el;
     }
@@ -111,6 +123,7 @@ export class UIRenderer {
       MP: ${unit.movementPoints}<br>
       Attacked: ${unit.hasAttacked ? 'Yes' : 'No'}
     `;
+    applyMobileStyles(el);
     document.body.appendChild(el);
     this.unitInfoEl = el;
   }
@@ -140,6 +153,7 @@ export class UIRenderer {
 
     if (settlement.productionQueue !== null) {
       el.innerHTML = `<b>City</b><br><span style="color:#888;">Producing: ${settlement.productionQueue}</span>`;
+      applyMobileStyles(el);
       document.body.appendChild(el);
       this.productionMenuEl = el;
       return;
@@ -169,6 +183,7 @@ export class UIRenderer {
     });
     el.querySelector('#prod-close')?.addEventListener('click', () => this.hideProductionMenu());
 
+    applyMobileStyles(el);
     document.body.appendChild(el);
     this.productionMenuEl = el;
   }
@@ -210,6 +225,7 @@ export class UIRenderer {
     }
     el.querySelector('#upgrade-close')?.addEventListener('click', () => this.hideUpgradeButton());
 
+    applyMobileStyles(el);
     document.body.appendChild(el);
     this.upgradeEl = el;
   }
@@ -241,6 +257,7 @@ export class UIRenderer {
       el.remove();
       onReturnToMenu();
     });
+    applyMobileStyles(el);
     document.body.appendChild(el);
     this.victoryEl = el;
   }
@@ -284,17 +301,18 @@ const MENU_BTN_STYLE = `
 
 const END_TURN_BTN_STYLE = `
   background: #aa4422; color: #fff; border: 2px solid #cc6644;
-  padding: 4px 12px; font-size: 0.85rem; font-family: monospace;
-  border-radius: 4px; cursor: pointer;
+  padding: 8px 16px; font-size: 1rem; font-family: monospace;
+  border-radius: 4px; cursor: pointer; min-height: 44px; min-width: 44px;
 `.replace(/\n\s*/g, ' ');
 
 const PROD_BTN_STYLE = `
-  display: block; width: 100%; margin: 4px 0; padding: 6px;
+  display: block; width: 100%; margin: 4px 0; padding: 10px 8px;
   background: #224488; color: #fff; border: 1px solid #446699;
-  font-family: monospace; cursor: pointer; border-radius: 4px;
+  font-family: monospace; cursor: pointer; border-radius: 4px; min-height: 44px;
 `.replace(/\n\s*/g, ' ');
 
 const CLOSE_BTN_STYLE = `
   background: #444; color: #ccc; border: 1px solid #666;
-  padding: 4px 10px; font-family: monospace; cursor: pointer; border-radius: 3px;
+  padding: 8px 12px; font-family: monospace; cursor: pointer; border-radius: 3px;
+  min-height: 44px; min-width: 44px;
 `.replace(/\n\s*/g, ' ');

@@ -35,11 +35,11 @@ export class FogRenderer {
       const y = tile.coord.row * tileSize;
 
       if (fogState === 'hidden') {
-        g.rect(x, y, tileSize - 1, tileSize - 1);
+        g.rect(x, y, tileSize, tileSize);
         g.fill({ color: 0x000000, alpha: 1.0 });
       } else {
         // 'explored'
-        g.rect(x, y, tileSize - 1, tileSize - 1);
+        g.rect(x, y, tileSize, tileSize);
         g.fill({ color: 0x000000, alpha: 0.5 });
       }
 
