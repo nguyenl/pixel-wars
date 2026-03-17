@@ -14,6 +14,7 @@ import { UnitsRenderer } from './units';
 import { FogRenderer } from './fog';
 import { UIRenderer } from './ui';
 import { clampPan } from './viewport';
+import { TAP_DISTANCE_THRESHOLD, pinchDistance, pinchMidpoint, type ActivePointer } from '../input/gesture';
 
 const TILE_SIZE = 32; // pixels per tile
 
@@ -49,6 +50,12 @@ export class GameRenderer {
   private panStartY = 0;
   private viewportInitialized = false;
 
+  // Multi-touch pointer tracking
+  private activePointers = new Map<number, ActivePointer>();
+  private gestureMode: 'idle' | 'pending' | 'pan' | 'pinch' = 'idle';
+  private pinchStartDist = 0;
+  private pinchStartZoom = 1;
+
   async init(container: HTMLElement): Promise<void> {
     this.container = container;
 
@@ -70,8 +77,9 @@ export class GameRenderer {
       { alias: 'artillery', src: 'assets/sprites/units/artillery.png' },
     ]);
 
-    // Handle resize
+    // Handle resize and orientation change
     window.addEventListener('resize', () => this.onResize());
+    window.addEventListener('orientationchange', () => this.onResize());
 
     // Create world container for all game-world rendering
     this.worldContainer = new Container();
@@ -83,8 +91,13 @@ export class GameRenderer {
     this.uiRenderer = new UIRenderer();
 
     const canvas = this.app.canvas as HTMLCanvasElement;
-    this.setupPanEvents(canvas);
-    this.setupZoomEvents(canvas);
+    canvas.style.touchAction = 'none';
+    this.setupPointerEvents(canvas);
+    this.setupWheelZoom(canvas);
+
+    // Suppress pull-to-refresh and context menus on mobile
+    document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+    document.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 
   render(state: GameState, humanPlayerId: PlayerId): void {
@@ -245,48 +258,121 @@ export class GameRenderer {
     this.worldContainer.scale.set(this.zoom);
   }
 
-  private setupPanEvents(canvas: HTMLCanvasElement): void {
-    canvas.addEventListener('mousedown', (e) => {
-      this.dragStartX = e.clientX;
-      this.dragStartY = e.clientY;
-      this.panStartX = this.panX;
-      this.panStartY = this.panY;
-      this.wasDragging = false;
-      this.isPanning = true;
+  private setupPointerEvents(canvas: HTMLCanvasElement): void {
+    canvas.addEventListener('pointerdown', (e) => {
+      const pointer: ActivePointer = {
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        startTime: Date.now(),
+        currentX: e.clientX,
+        currentY: e.clientY,
+      };
+      this.activePointers.set(e.pointerId, pointer);
+
+      if (this.activePointers.size === 2) {
+        // Enter pinch mode
+        this.gestureMode = 'pinch';
+        const [a, b] = [...this.activePointers.values()];
+        this.pinchStartDist = pinchDistance(a, b);
+        this.pinchStartZoom = this.zoom;
+        this.wasDragging = true; // prevent tap on release
+      } else if (this.activePointers.size === 1) {
+        this.gestureMode = 'pending';
+        this.dragStartX = e.clientX;
+        this.dragStartY = e.clientY;
+        this.panStartX = this.panX;
+        this.panStartY = this.panY;
+        this.wasDragging = false;
+        this.isPanning = true;
+      }
     });
 
-    canvas.addEventListener('mousemove', (e) => {
+    canvas.addEventListener('pointermove', (e) => {
+      const pointer = this.activePointers.get(e.pointerId);
+      if (!pointer) return;
+      pointer.currentX = e.clientX;
+      pointer.currentY = e.clientY;
+
+      if (this.gestureMode === 'pinch' && this.activePointers.size === 2) {
+        // Pinch-to-zoom
+        const [a, b] = [...this.activePointers.values()];
+        const currentDist = pinchDistance(a, b);
+        if (this.pinchStartDist === 0) return;
+
+        const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM,
+          this.pinchStartZoom * (currentDist / this.pinchStartDist)));
+
+        const mid = pinchMidpoint(a, b);
+        const rect = canvas.getBoundingClientRect();
+        const midX = mid.x - rect.left;
+        const midY = mid.y - rect.top;
+
+        const worldPointX = (midX - this.panX) / this.zoom;
+        const worldPointY = (midY - this.panY) / this.zoom;
+
+        this.zoom = newZoom;
+        this.panX = midX - worldPointX * this.zoom;
+        this.panY = midY - worldPointY * this.zoom;
+
+        const clamped = clampPan(
+          this.panX, this.panY, this.zoom,
+          this.app.renderer.width, this.app.renderer.height,
+          this.currentMapSize.cols, this.currentMapSize.rows, TILE_SIZE,
+        );
+        this.panX = clamped.x;
+        this.panY = clamped.y;
+        this.applyViewport();
+        return;
+      }
+
       if (!this.isPanning) return;
+
       const dx = e.clientX - this.dragStartX;
       const dy = e.clientY - this.dragStartY;
-      if (!this.wasDragging && Math.sqrt(dx * dx + dy * dy) < DRAG_THRESHOLD) return;
+      const threshold = e.pointerType === 'mouse' ? DRAG_THRESHOLD : TAP_DISTANCE_THRESHOLD;
+      if (!this.wasDragging && Math.sqrt(dx * dx + dy * dy) < threshold) return;
 
       this.wasDragging = true;
+      this.gestureMode = 'pan';
       const clamped = clampPan(
-        this.panStartX + dx,
-        this.panStartY + dy,
+        this.panStartX + dx, this.panStartY + dy,
         this.zoom,
-        this.app.renderer.width,
-        this.app.renderer.height,
-        this.currentMapSize.cols,
-        this.currentMapSize.rows,
-        TILE_SIZE,
+        this.app.renderer.width, this.app.renderer.height,
+        this.currentMapSize.cols, this.currentMapSize.rows, TILE_SIZE,
       );
       this.panX = clamped.x;
       this.panY = clamped.y;
       this.applyViewport();
     });
 
-    canvas.addEventListener('mouseup', () => {
-      this.isPanning = false;
-    });
+    const endPointer = (e: PointerEvent) => {
+      this.activePointers.delete(e.pointerId);
 
-    canvas.addEventListener('mouseleave', () => {
-      this.isPanning = false;
-    });
+      if (this.gestureMode === 'pinch' && this.activePointers.size === 1) {
+        // Transition from pinch to pan: reset drag origin to remaining pointer
+        const remaining = [...this.activePointers.values()][0];
+        this.dragStartX = remaining.currentX;
+        this.dragStartY = remaining.currentY;
+        this.panStartX = this.panX;
+        this.panStartY = this.panY;
+        this.gestureMode = 'pan';
+        this.isPanning = true;
+        return;
+      }
+
+      if (this.activePointers.size === 0) {
+        this.isPanning = false;
+        this.gestureMode = 'idle';
+      }
+    };
+
+    canvas.addEventListener('pointerup', endPointer);
+    canvas.addEventListener('pointerleave', endPointer);
+    canvas.addEventListener('pointercancel', endPointer);
   }
 
-  private setupZoomEvents(canvas: HTMLCanvasElement): void {
+  private setupWheelZoom(canvas: HTMLCanvasElement): void {
     canvas.addEventListener('wheel', (e) => {
       e.preventDefault();
 
@@ -305,14 +391,9 @@ export class GameRenderer {
       this.panY = mouseY - worldPointY * this.zoom;
 
       const clamped = clampPan(
-        this.panX,
-        this.panY,
-        this.zoom,
-        this.app.renderer.width,
-        this.app.renderer.height,
-        this.currentMapSize.cols,
-        this.currentMapSize.rows,
-        TILE_SIZE,
+        this.panX, this.panY, this.zoom,
+        this.app.renderer.width, this.app.renderer.height,
+        this.currentMapSize.cols, this.currentMapSize.rows, TILE_SIZE,
       );
       this.panX = clamped.x;
       this.panY = clamped.y;

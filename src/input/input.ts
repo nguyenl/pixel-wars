@@ -11,6 +11,7 @@ import { applyAction } from '../game/state';
 import type { GameRenderer } from '../renderer/renderer';
 import type { UIRenderer } from '../renderer/ui';
 import type { SoundManager } from '../audio/sound';
+import { isTap, type ActivePointer } from './gesture';
 
 type StateUpdater = (state: GameState) => void;
 
@@ -36,34 +37,32 @@ export class InputHandler {
     );
   }
 
+  /** Tracks the pointer that went down so we can detect taps on pointerup. */
+  private pendingPointer: ActivePointer | null = null;
+
   private setupCanvasClick(): void {
     const canvas = this.renderer.getApp().canvas as HTMLCanvasElement;
-    canvas.addEventListener('click', (e) => {
-      if (this.renderer.isDragging()) return;
-      const state = this.getState();
-      if (state.phase !== 'orders' || state.currentPlayer !== this.humanPlayerId) return;
 
-      const rect = canvas.getBoundingClientRect();
-      const offset = this.renderer.getWorldOffset();
-      const tileSize = this.renderer.getTileSize();
-      const zoom = this.renderer.getZoom();
-      const worldX = (e.clientX - rect.left - offset.x) / zoom;
-      const worldY = (e.clientY - rect.top - offset.y) / zoom;
-
-      // Reject clicks outside the map area
-      const mapW = state.mapSize.cols * tileSize;
-      const mapH = state.mapSize.rows * tileSize;
-      if (worldX < 0 || worldY < 0 || worldX >= mapW || worldY >= mapH) return;
-
-      const col = Math.floor(worldX / tileSize);
-      const row = Math.floor(worldY / tileSize);
-      const coord: TileCoord = { row, col };
-
-      this.handleTileClick(coord, state);
+    // Track pointer down for tap detection
+    canvas.addEventListener('pointerdown', (e) => {
+      this.pendingPointer = {
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        startTime: Date.now(),
+        currentX: e.clientX,
+        currentY: e.clientY,
+      };
     });
 
-    // Hover highlight
-    canvas.addEventListener('mousemove', (e) => {
+    canvas.addEventListener('pointermove', (e) => {
+      if (this.pendingPointer && e.pointerId === this.pendingPointer.pointerId) {
+        this.pendingPointer.currentX = e.clientX;
+        this.pendingPointer.currentY = e.clientY;
+      }
+
+      // Hover highlight — only for mouse pointer
+      if (e.pointerType !== 'mouse') return;
       const state = this.getState();
       if (state.phase === 'ai' || this.selectedUnitId === null) {
         this.renderer.setHoverCoord(null);
@@ -90,8 +89,41 @@ export class InputHandler {
       this.renderer.render(state, this.humanPlayerId);
     });
 
-    canvas.addEventListener('mouseleave', () => {
-      this.renderer.setHoverCoord(null);
+    // Tap detection on pointerup
+    canvas.addEventListener('pointerup', (e) => {
+      const pointer = this.pendingPointer;
+      if (!pointer || pointer.pointerId !== e.pointerId) return;
+      pointer.currentX = e.clientX;
+      pointer.currentY = e.clientY;
+      this.pendingPointer = null;
+
+      // Only process taps (not drags/pinches)
+      if (this.renderer.isDragging()) return;
+      if (!isTap(pointer, Date.now())) return;
+
+      const state = this.getState();
+      if (state.phase !== 'orders' || state.currentPlayer !== this.humanPlayerId) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const offset = this.renderer.getWorldOffset();
+      const tileSize = this.renderer.getTileSize();
+      const zoom = this.renderer.getZoom();
+      const worldX = (e.clientX - rect.left - offset.x) / zoom;
+      const worldY = (e.clientY - rect.top - offset.y) / zoom;
+
+      const mapW = state.mapSize.cols * tileSize;
+      const mapH = state.mapSize.rows * tileSize;
+      if (worldX < 0 || worldY < 0 || worldX >= mapW || worldY >= mapH) return;
+
+      const col = Math.floor(worldX / tileSize);
+      const row = Math.floor(worldY / tileSize);
+      this.handleTileClick({ row, col }, state);
+    });
+
+    canvas.addEventListener('pointerleave', (e) => {
+      if (e.pointerType === 'mouse') {
+        this.renderer.setHoverCoord(null);
+      }
     });
   }
 
