@@ -119,7 +119,7 @@ describe('endTurn', () => {
 
 // Capture tests (T037) — written here per task plan
 describe('capture resolution in endTurn', () => {
-  it('neutral settlement occupied at end-of-turn transfers ownership to active player', () => {
+  it('neutral settlement occupied for two consecutive turns transfers ownership to active player', () => {
     const state = getOrdersState();
     // Find a neutral settlement
     const neutralSettlement = Object.values(state.settlements).find(s => s.owner === 'neutral');
@@ -129,9 +129,18 @@ describe('capture resolution in endTurn', () => {
     }
     const settlementTileId = neutralSettlement.tileId;
     const unitId = 'capture-unit';
-    // Place a player1 unit on the neutral settlement tile
+    // Pre-seed captureProgress=1 (unit has been occupying for one turn already)
+    // so that the next endTurn completes the capture (two-turn capture rule)
     const stateWithUnit: GameState = {
       ...state,
+      settlements: {
+        ...state.settlements,
+        [neutralSettlement.id]: {
+          ...state.settlements[neutralSettlement.id],
+          captureProgress: 1,
+          capturingUnit: unitId,
+        },
+      },
       units: {
         [unitId]: {
           id: unitId,
@@ -160,8 +169,17 @@ describe('capture resolution in endTurn', () => {
     if (!neutralTown) return; // Skip if no neutral towns
 
     const unitId = 'capture-unit-2';
+    // Pre-seed captureProgress=1 so this endTurn completes the capture
     const stateWithUnit: GameState = {
       ...state,
+      settlements: {
+        ...state.settlements,
+        [neutralTown.id]: {
+          ...state.settlements[neutralTown.id],
+          captureProgress: 1,
+          capturingUnit: unitId,
+        },
+      },
       units: {
         [unitId]: {
           id: unitId,
@@ -304,11 +322,16 @@ describe('victory detection', () => {
 
     const p2City = p2Cities[0];
     const unitId = 'final-capture';
+    // Pre-seed captureProgress=1 so this endTurn completes the capture (two-turn rule)
     const stateForCapture: GameState = {
       ...state,
       settlements: {
         ...state.settlements,
-        // Remove all player2 cities except the one we're about to capture
+        [p2City.id]: {
+          ...state.settlements[p2City.id],
+          captureProgress: 1,
+          capturingUnit: unitId,
+        },
       },
       units: {
         [unitId]: {

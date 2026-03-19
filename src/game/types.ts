@@ -70,6 +70,17 @@ export interface Settlement {
    * Only cities may have a production queue (towns cannot produce units).
    */
   productionQueue: UnitType | null;
+  /**
+   * Number of consecutive turns a foreign unit has occupied this settlement.
+   * 0 = uncontested, 1 = one turn occupied (capture completes on second turn).
+   * Resets to 0 when the occupying unit leaves or is destroyed.
+   */
+  captureProgress: number;
+  /**
+   * ID of the unit currently occupying this settlement for capture purposes.
+   * null when captureProgress is 0.
+   */
+  capturingUnit: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -128,6 +139,21 @@ export interface KnownTile {
 export type KnownWorld = Record<string, KnownTile>;
 
 // ---------------------------------------------------------------------------
+// Game Statistics (accumulated per player for scoreboard)
+// ---------------------------------------------------------------------------
+
+export interface GameStats {
+  /** Total units spawned from production queues */
+  unitsProduced: number;
+  /** Total friendly units destroyed */
+  unitsLost: number;
+  /** Cumulative funds collected at start-of-turn income */
+  totalIncomeEarned: number;
+  /** City count at game-over moment (set once when victory is detected) */
+  citiesAtEnd: number;
+}
+
+// ---------------------------------------------------------------------------
 // Game State (root document)
 // ---------------------------------------------------------------------------
 
@@ -157,6 +183,8 @@ export interface GameState {
   winner: PlayerId | null;
   /** Random seed used to generate this map */
   mapSeed: number;
+  /** Per-player accumulated statistics for the end-game scoreboard */
+  gameStats: Record<PlayerId, GameStats>;
 }
 
 // ---------------------------------------------------------------------------

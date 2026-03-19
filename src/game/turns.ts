@@ -32,10 +32,26 @@ export function checkVictory(state: GameState): GameState {
   ).length;
 
   if (player2Cities === 0) {
-    return { ...state, winner: 'player1', phase: 'victory' };
+    return {
+      ...state,
+      winner: 'player1',
+      phase: 'victory',
+      gameStats: {
+        player1: { ...state.gameStats['player1'], citiesAtEnd: player1Cities },
+        player2: { ...state.gameStats['player2'], citiesAtEnd: 0 },
+      },
+    };
   }
   if (player1Cities === 0) {
-    return { ...state, winner: 'player2', phase: 'victory' };
+    return {
+      ...state,
+      winner: 'player2',
+      phase: 'victory',
+      gameStats: {
+        player1: { ...state.gameStats['player1'], citiesAtEnd: 0 },
+        player2: { ...state.gameStats['player2'], citiesAtEnd: player2Cities },
+      },
+    };
   }
   return state;
 }
@@ -105,6 +121,14 @@ export function startTurn(state: GameState): GameState {
     },
   };
 
+  const newGameStats = {
+    ...state.gameStats,
+    [player]: {
+      ...state.gameStats[player],
+      totalIncomeEarned: state.gameStats[player].totalIncomeEarned + income,
+    },
+  };
+
   // Step 3: Reset unit movement and attack flags for this player's units
   for (const [id, unit] of Object.entries(newUnits)) {
     if (unit.owner === player) {
@@ -122,6 +146,7 @@ export function startTurn(state: GameState): GameState {
     tiles: newTiles,
     settlements: newSettlements,
     players: newPlayers,
+    gameStats: newGameStats,
     phase: 'orders',
   };
 
@@ -188,46 +213,75 @@ export function endAiTurn(state: GameState): GameState {
 
 function resolveCaptures(state: GameState): GameState {
   const activePlayer = state.currentPlayer;
-  let newState = state;
+  let newSettlements = { ...state.settlements };
 
   for (const settlement of Object.values(state.settlements)) {
-    if (settlement.owner === activePlayer) continue; // already owned
-
-    const tile = state.tiles[settlement.tileId];
-    if (!tile || tile.unitId === null) continue; // no unit present
-
-    const unit = state.units[tile.unitId];
-    if (!unit || unit.owner !== activePlayer) continue; // not our unit
-
-    // Enemy unit present: combat first
-    let settlementState = newState;
-    if (settlement.owner !== 'neutral') {
-      // Find enemy unit on this tile
-      const enemyUnit = newState.units[tile.unitId];
-      // Wait — the tile.unitId IS our unit. Check for enemy units separately.
-      // Actually, after our unit moves to a tile, there should be no other unit there.
-      // (move validation prevents landing on occupied tiles)
-      // So combat-before-capture only applies if the settlement is enemy-owned
-      // and an enemy unit was already there when our unit arrived.
-      // Since only one unit can be on a tile, if our unit is there, enemy isn't.
-      // This case is handled by the move validation (can't land on enemy unit).
-      // Skip combat case for now; just capture.
+    if (settlement.owner === activePlayer) {
+      // Friendly settlement: reset stale capture state only if no enemy is actively occupying it.
+      // If an enemy unit is present, their captureProgress is valid and must not be wiped.
+      const friendlyTile = state.tiles[settlement.tileId];
+      const unitOnFriendlyTile = friendlyTile?.unitId ? state.units[friendlyTile.unitId] : null;
+      const enemyPresent = unitOnFriendlyTile && unitOnFriendlyTile.owner !== activePlayer;
+      if (!enemyPresent && (settlement.captureProgress !== 0 || settlement.capturingUnit !== null)) {
+        newSettlements[settlement.id] = {
+          ...newSettlements[settlement.id],
+          captureProgress: 0,
+          capturingUnit: null,
+        };
+      }
+      continue;
     }
 
-    // Capture: transfer ownership
-    settlementState = {
-      ...settlementState,
-      settlements: {
-        ...settlementState.settlements,
-        [settlement.id]: {
-          ...settlementState.settlements[settlement.id],
+    const tile = state.tiles[settlement.tileId];
+    const unitOnTile = tile?.unitId ? state.units[tile.unitId] : null;
+
+    if (!unitOnTile || unitOnTile.owner !== activePlayer) {
+      // No occupying unit from this player — reset progress if it was ours
+      if (settlement.capturingUnit !== null) {
+        const capturingUnit = state.units[settlement.capturingUnit];
+        // If the capturing unit is gone or no longer on this tile, reset
+        if (!capturingUnit || capturingUnit.tileId !== settlement.tileId) {
+          newSettlements[settlement.id] = {
+            ...newSettlements[settlement.id],
+            captureProgress: 0,
+            capturingUnit: null,
+          };
+        }
+      }
+      continue;
+    }
+
+    // Active player's unit is on this settlement tile
+    const current = newSettlements[settlement.id];
+
+    if (current.capturingUnit !== null && current.capturingUnit !== unitOnTile.id) {
+      // Different unit than last turn — reset progress, start fresh
+      newSettlements[settlement.id] = {
+        ...current,
+        captureProgress: 1,
+        capturingUnit: unitOnTile.id,
+      };
+    } else {
+      // Same unit (or first time) — increment progress
+      const newProgress = current.captureProgress + 1;
+      if (newProgress >= 2) {
+        // Capture complete: transfer ownership
+        newSettlements[settlement.id] = {
+          ...current,
           owner: activePlayer,
-          productionQueue: null, // clear enemy production
-        },
-      },
-    };
-    newState = settlementState;
+          productionQueue: null,
+          captureProgress: 0,
+          capturingUnit: null,
+        };
+      } else {
+        newSettlements[settlement.id] = {
+          ...current,
+          captureProgress: newProgress,
+          capturingUnit: unitOnTile.id,
+        };
+      }
+    }
   }
 
-  return newState;
+  return { ...state, settlements: newSettlements };
 }

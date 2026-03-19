@@ -137,6 +137,8 @@ function placeSettlements(
       type: 'city',
       owner: 'neutral',
       productionQueue: null,
+      captureProgress: 0,
+      capturingUnit: null,
     };
     settlements[id] = settlement;
     cities.push(settlement);
@@ -158,6 +160,8 @@ function placeSettlements(
       type: 'town',
       owner: 'neutral',
       productionQueue: null,
+      captureProgress: 0,
+      capturingUnit: null,
     };
     settlements[id] = settlement;
     placed.push(tile.coord);

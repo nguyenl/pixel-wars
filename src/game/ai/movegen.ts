@@ -16,7 +16,7 @@ import { chebyshevDistance } from '../board';
 import { reachableMap, getAttackableTargets, findPath } from '../pathfinding';
 import { resolveCombat } from '../combat';
 import { computeUtility, type Objective } from './scoring';
-import { buildObjectives } from './objectives';
+import { buildObjectives, isOffensivePhase } from './objectives';
 
 /**
  * Generate ordered candidate actions for a single unit.
@@ -62,8 +62,9 @@ export function generateCandidateActions(
     if (unitTile) {
       const reachable = reachableMap(state, unitTile.coord, unit.movementPoints);
 
-      // Build objectives to score moves
-      const objectives = buildObjectives(state);
+      // Build objectives to score moves (phase-aware)
+      const offensive = isOffensivePhase(state);
+      const objectives = buildObjectives(state, offensive);
       const moveCandidates: CandidateAction[] = [];
 
       for (const [destId] of reachable) {
@@ -77,7 +78,7 @@ export function generateCandidateActions(
         // Score this move by how well it serves the best objective
         let bestObjScore = 0;
         for (const obj of objectives) {
-          const utility = computeUtility(unit, obj, state);
+          const utility = computeUtility(unit, obj, state, offensive);
           const distBefore = chebyshevDistance(unitTile.coord, obj.tileCoord);
           const distAfter = chebyshevDistance(destTile.coord, obj.tileCoord);
           if (distAfter < distBefore) {

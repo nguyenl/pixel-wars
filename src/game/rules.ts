@@ -184,6 +184,7 @@ export function validateProduce(
 export function applyProduce(state: GameState, action: ProduceAction): GameState {
   const cost = UNIT_CONFIG[action.unitType].productionCost;
   const player = state.players[state.currentPlayer];
+  const pid = state.currentPlayer;
 
   return {
     ...state,
@@ -196,9 +197,16 @@ export function applyProduce(state: GameState, action: ProduceAction): GameState
     },
     players: {
       ...state.players,
-      [state.currentPlayer]: {
+      [pid]: {
         ...player,
         funds: player.funds - cost,
+      },
+    },
+    gameStats: {
+      ...state.gameStats,
+      [pid]: {
+        ...state.gameStats[pid],
+        unitsProduced: state.gameStats[pid].unitsProduced + 1,
       },
     },
   };
