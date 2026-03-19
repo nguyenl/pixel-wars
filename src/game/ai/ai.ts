@@ -13,11 +13,11 @@ import { reachableMap, getAttackableTargets, findPath } from '../pathfinding';
 import { resolveCombat } from '../combat';
 import { validateMove, applyMove, validateAttack, applyAttack, validateProduce, applyProduce, validateUpgrade, applyUpgrade } from '../rules';
 import { computeUtility, type Objective } from './scoring';
-import { buildObjectives } from './objectives';
+import { buildObjectives, isOffensivePhase } from './objectives';
 import { search, DEFAULT_SEARCH_CONFIG } from './search';
 
-// Re-export buildObjectives for backward compatibility with existing tests
-export { buildObjectives } from './objectives';
+// Re-export for backward compatibility with existing tests and for test imports
+export { buildObjectives, isOffensivePhase } from './objectives';
 
 const AI_PLAYER = 'player2' as const;
 const HUMAN_PLAYER = 'player1' as const;
@@ -254,34 +254,48 @@ export function computeTurnGreedy(state: GameState): Action[] {
     }
   }
 
-  const combatUnitCount = Object.values(currentState.units).filter(
-    u => u.owner === AI_PLAYER && (u.type === 'infantry' || u.type === 'artillery'),
-  ).length;
-  const aggressive = combatUnitCount >= 3;
+  const offensive = isOffensivePhase(currentState);
 
   const aiUnits = Object.values(currentState.units)
     .filter(u => u.owner === AI_PLAYER)
     .sort((a, b) => b.hp - a.hp);
 
-  const objectives = buildObjectives(currentState, aggressive);
+  const objectives = buildObjectives(currentState, offensive);
   const claimedObjectives = new Set<string>();
+
+  // In offensive phase, reserve one unit per owned city as a defender
+  const aiCityCount = Object.values(currentState.settlements).filter(
+    s => s.owner === AI_PLAYER && s.type === 'city',
+  ).length;
+  const defenderSlots = offensive ? aiCityCount : 0;
+  let defendersAssigned = 0;
 
   for (const unit of aiUnits) {
     const currentUnit = currentState.units[unit.id];
     if (!currentUnit) continue;
 
+    // Determine available objective types based on defender budget
+    const unitObjectives = objectives.filter(obj => {
+      if (defendersAssigned < defenderSlots && obj.type === 'defend') return true;
+      if (obj.type === 'defend') return false;
+      return true;
+    });
+
     let bestObjective: Objective | null = null;
     let bestScore = -Infinity;
-    for (const obj of objectives) {
-      if (claimedObjectives.has(obj.tileId)) continue;
-      const score = computeUtility(currentUnit, obj, currentState, aggressive);
+    for (const obj of unitObjectives) {
+      if (claimedObjectives.has(obj.tileId + obj.type)) continue;
+      const score = computeUtility(currentUnit, obj, currentState, offensive);
       if (score > bestScore) {
         bestScore = score;
         bestObjective = obj;
       }
     }
 
-    if (bestObjective) claimedObjectives.add(bestObjective.tileId);
+    if (bestObjective) {
+      claimedObjectives.add(bestObjective.tileId + bestObjective.type);
+      if (bestObjective.type === 'defend') defendersAssigned++;
+    }
 
     const decisions = decideUnitActions(currentUnit, currentState, bestObjective);
     for (const { action, apply } of decisions) {

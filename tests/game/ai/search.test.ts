@@ -47,6 +47,7 @@ function makeGameState(setup: BoardSetup = {}): GameState {
     }
   }
 
+  const emptyStats = () => ({ unitsProduced: 0, unitsLost: 0, totalIncomeEarned: 0, citiesAtEnd: 0 });
   return {
     turn: 1,
     currentPlayer: 'player2',
@@ -64,6 +65,7 @@ function makeGameState(setup: BoardSetup = {}): GameState {
     aiKnownWorld: {},
     winner: null,
     mapSeed: 1,
+    gameStats: { player1: emptyStats(), player2: emptyStats() },
   };
 }
 
@@ -82,7 +84,7 @@ function makeUnit(id: string, owner: 'player1' | 'player2', type: 'scout' | 'inf
 }
 
 function makeSettlement(id: string, tileId: string, type: 'city' | 'town', owner: 'player1' | 'player2' | 'neutral'): Settlement {
-  return { id, tileId, type, owner, productionQueue: null };
+  return { id, tileId, type, owner, productionQueue: null, captureProgress: 0, capturingUnit: null };
 }
 
 const defaultConfig: SearchConfig = {

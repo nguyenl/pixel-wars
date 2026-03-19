@@ -59,7 +59,7 @@ class Game {
     this.render();
 
     if (newState.phase === 'victory') {
-      this.renderer.showVictoryScreen(newState.winner!, () => this.resetGame());
+      this.renderer.showScoreboard(newState.gameStats, newState.winner!, () => this.resetGame());
       return;
     }
 
@@ -121,7 +121,7 @@ class Game {
     this.render();
 
     if (this.state.phase === 'victory') {
-      this.renderer.showVictoryScreen(this.state.winner!, () => this.resetGame());
+      this.renderer.showScoreboard(this.state.gameStats, this.state.winner!, () => this.resetGame());
     }
   }
 

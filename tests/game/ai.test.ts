@@ -247,6 +247,8 @@ describe('AI settlement capture (phase: ai)', () => {
             type: 'town',
             owner: 'neutral',
             productionQueue: null,
+            captureProgress: 0,
+            capturingUnit: null,
           },
         },
         tiles: {
@@ -804,6 +806,8 @@ describe('AI upgrade heuristic', () => {
           type: 'town',
           owner: 'player2',
           productionQueue: null,
+          captureProgress: 0,
+          capturingUnit: null,
         },
       },
       tiles: {
@@ -843,6 +847,8 @@ describe('AI upgrade heuristic', () => {
           type: 'town',
           owner: 'player2',
           productionQueue: null,
+          captureProgress: 0,
+          capturingUnit: null,
         },
       },
       tiles: {

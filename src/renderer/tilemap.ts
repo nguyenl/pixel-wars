@@ -166,6 +166,25 @@ export class TilemapRenderer {
       } else {
         this.drawTownGraphic(g, x, y, tileSize, ownerColor);
       }
+
+      // Capture progress bar (shown when captureProgress > 0)
+      if (settlement.captureProgress > 0) {
+        const capturingUnit = settlement.capturingUnit
+          ? state.units[settlement.capturingUnit]
+          : null;
+        const barColor = capturingUnit?.owner === 'player1' ? 0x4488ff : 0xff4444;
+        const barWidth = tileSize - 4;
+        const barHeight = 3;
+        const barX = x + 2;
+        const barY = y + 1;
+        // Background track
+        g.rect(barX, barY, barWidth, barHeight);
+        g.fill({ color: 0x222222, alpha: 0.7 });
+        // Filled portion (50% at progress 1, 100% at progress 2 — but 2 means captured)
+        const fillFraction = settlement.captureProgress / 2;
+        g.rect(barX, barY, barWidth * fillFraction, barHeight);
+        g.fill({ color: barColor, alpha: 0.9 });
+      }
     }
   }
 

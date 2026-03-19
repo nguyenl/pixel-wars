@@ -51,6 +51,8 @@ function makeStateWithTown(): { state: GameState; townId: string } {
         type: 'town',
         owner: 'player1',
         productionQueue: null,
+        captureProgress: 0,
+        capturingUnit: null,
       },
     },
     tiles: {

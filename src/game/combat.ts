@@ -79,12 +79,19 @@ export function applyCombatResult(
   let newState = state;
   const newUnits = { ...state.units };
   const newTiles = { ...state.tiles };
+  let newGameStats = { ...state.gameStats };
 
   // Update attacker
   if (result.attackerDestroyed) {
-    const attackerTileId = newUnits[attackerUnitId].tileId;
+    const attacker = newUnits[attackerUnitId];
+    const attackerTileId = attacker.tileId;
+    const pid = attacker.owner;
     delete newUnits[attackerUnitId];
     newTiles[attackerTileId] = { ...newTiles[attackerTileId], unitId: null };
+    newGameStats = {
+      ...newGameStats,
+      [pid]: { ...newGameStats[pid], unitsLost: newGameStats[pid].unitsLost + 1 },
+    };
   } else {
     newUnits[attackerUnitId] = {
       ...newUnits[attackerUnitId],
@@ -95,9 +102,15 @@ export function applyCombatResult(
 
   // Update defender
   if (result.defenderDestroyed) {
-    const defenderTileId = newUnits[targetUnitId].tileId;
+    const defender = newUnits[targetUnitId];
+    const defenderTileId = defender.tileId;
+    const pid = defender.owner;
     delete newUnits[targetUnitId];
     newTiles[defenderTileId] = { ...newTiles[defenderTileId], unitId: null };
+    newGameStats = {
+      ...newGameStats,
+      [pid]: { ...newGameStats[pid], unitsLost: newGameStats[pid].unitsLost + 1 },
+    };
   } else {
     newUnits[targetUnitId] = {
       ...newUnits[targetUnitId],
@@ -105,5 +118,5 @@ export function applyCombatResult(
     };
   }
 
-  return { ...newState, units: newUnits, tiles: newTiles };
+  return { ...newState, units: newUnits, tiles: newTiles, gameStats: newGameStats };
 }

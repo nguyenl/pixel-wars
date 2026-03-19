@@ -9,12 +9,12 @@ import { UNIT_CONFIG, SETTLEMENT_INCOME } from '../constants';
 import { chebyshevDistance } from '../board';
 
 export interface Objective {
-  type: 'enemy-unit' | 'settlement' | 'explore';
+  type: 'enemy-unit' | 'settlement' | 'explore' | 'block-capture' | 'defend';
   tileCoord: TileCoord;
   tileId: string;
   /** Enemy unit ID (for 'enemy-unit' objectives) */
   enemyUnitId?: string;
-  /** Settlement ID (for 'settlement' objectives) */
+  /** Settlement ID (for 'settlement', 'block-capture', and 'defend' objectives) */
   settlementId?: string;
 }
 
@@ -42,6 +42,10 @@ export function unitFitScore(unit: Unit, objective: Objective): number {
       return unit.type === 'infantry' ? 2 : unit.type === 'scout' ? 1 : 0.5;
     case 'enemy-unit':
       return unit.type === 'artillery' ? 2 : unit.type === 'infantry' ? 1.5 : 1;
+    case 'block-capture':
+      return unit.type === 'infantry' ? 2 : unit.type === 'scout' ? 1.5 : 1;
+    case 'defend':
+      return unit.type === 'infantry' ? 2 : unit.type === 'artillery' ? 1.5 : 1;
   }
 }
 
@@ -66,6 +70,15 @@ export function objectiveValueScore(objective: Objective, state: GameState): num
     }
     case 'explore':
       return 0.5;
+    case 'block-capture': {
+      // High value: blocking a city capture is worth more than blocking a town
+      if (!objective.settlementId) return 2;
+      const settlement = state.settlements[objective.settlementId];
+      if (!settlement) return 2;
+      return settlement.type === 'city' ? 4 : 2;
+    }
+    case 'defend':
+      return 1.5;
   }
 }
 
@@ -88,17 +101,26 @@ export function threatScore(objective: Objective, state: GameState): number {
 
 /**
  * Combined utility score for assigning a unit to an objective.
- * When `aggressive` is true, enemy-unit objectives get higher weight
- * and the threat penalty is reduced.
+ * When `isOffensivePhase` is true, enemy-unit and aggressive objectives get
+ * higher weight and the threat penalty is reduced.
+ * When in expansion phase, block-capture objectives get a bonus multiplier.
  */
 export function computeUtility(
   unit: Unit,
   objective: Objective,
   state: GameState,
-  aggressive = false,
+  isOffensivePhase = false,
 ): number {
-  const valueWeight = aggressive && objective.type === 'enemy-unit' ? 3 : 2;
-  const threatWeight = aggressive ? 0.2 : 0.5;
+  const isOffensive = isOffensivePhase;
+  let valueWeight: number;
+  if (isOffensive && (objective.type === 'enemy-unit')) {
+    valueWeight = 3;
+  } else if (!isOffensive && objective.type === 'block-capture') {
+    valueWeight = 3; // high priority during expansion
+  } else {
+    valueWeight = 2;
+  }
+  const threatWeight = isOffensive ? 0.2 : 0.5;
   return (
     distanceScore(unit, objective, state) * 2 +
     unitFitScore(unit, objective) * 1.5 +

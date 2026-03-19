@@ -7,6 +7,7 @@
 
 import type {
   GameState,
+  GameStats,
   MapSizeOption,
   Action,
   ActionResult,
@@ -55,6 +56,13 @@ export function newGame(mapSize: MapSizeOption, seed?: number): GameState {
     tilesWithScouts[cityTileId] = { ...tilesWithScouts[cityTileId], unitId };
   });
 
+  const emptyStats = (): GameStats => ({
+    unitsProduced: 0,
+    unitsLost: 0,
+    totalIncomeEarned: 0,
+    citiesAtEnd: 0,
+  });
+
   const state: GameState = {
     turn: 1,
     currentPlayer: 'player1',
@@ -75,6 +83,10 @@ export function newGame(mapSize: MapSizeOption, seed?: number): GameState {
     aiKnownWorld: {},
     winner: null,
     mapSeed: generated.seed,
+    gameStats: {
+      player1: emptyStats(),
+      player2: emptyStats(),
+    },
   };
 
   // Start turn 1 (income phase → orders phase, recompute fog)

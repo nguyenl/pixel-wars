@@ -5,7 +5,7 @@
  * Uses DOM elements overlaid on the PixiJS canvas.
  */
 
-import type { GameState, PlayerId, MapSizeOption, UnitType, Settlement, Unit } from '../game/types';
+import type { GameState, PlayerId, MapSizeOption, UnitType, Settlement, Unit, GameStats } from '../game/types';
 import { UNIT_CONFIG, SETTLEMENT_INCOME } from '../game/constants';
 
 /** Compute aggregate player economy stats from game state. */
@@ -297,9 +297,76 @@ export class UIRenderer {
     `;
     const winnerName = winner === 'player1' ? 'Player 1' : 'Player 2';
     el.innerHTML = `
-      <h1 style="font-size:3rem; margin-bottom:1rem;">🏆 ${winnerName} Wins!</h1>
+      <h1 style="font-size:3rem; margin-bottom:1rem;">&#x1F3C6; ${winnerName} Wins!</h1>
       <button id="return-menu" style="${MENU_BTN_STYLE}">Return to Main Menu</button>
     `;
+    el.querySelector('#return-menu')?.addEventListener('click', () => {
+      el.remove();
+      onReturnToMenu();
+    });
+    applyMobileStyles(el);
+    document.body.appendChild(el);
+    this.victoryEl = el;
+  }
+
+  // ---------------------------------------------------------------------------
+  // End-Game Scoreboard
+  // ---------------------------------------------------------------------------
+
+  showScoreboard(
+    stats: Record<PlayerId, GameStats>,
+    winner: PlayerId,
+    onReturnToMenu: () => void,
+  ): void {
+    this.victoryEl?.remove();
+    const el = document.createElement('div');
+    el.id = 'victory-screen';
+    el.style.cssText = `
+      position: fixed; inset: 0; background: rgba(10,10,30,0.95);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      color: #fff; font-family: monospace; z-index: 200; overflow-y: auto; padding: 1rem;
+    `;
+
+    const winnerName = winner === 'player1' ? 'Player 1' : 'AI';
+    const p1 = stats['player1'];
+    const p2 = stats['player2'];
+
+    const row = (label: string, p1val: number | string, p2val: number | string) =>
+      `<tr style="border-bottom:1px solid #333;">
+        <td style="padding:8px 12px; color:#aaa;">${label}</td>
+        <td style="padding:8px 16px; text-align:center; font-weight:bold;">${p1val}</td>
+        <td style="padding:8px 16px; text-align:center; font-weight:bold;">${p2val}</td>
+      </tr>`;
+
+    el.innerHTML = `
+      <div style="max-width:480px; width:100%;">
+        <h1 style="font-size:2rem; text-align:center; margin-bottom:0.5rem;">
+          &#x1F3C6; ${winnerName} Wins!
+        </h1>
+        <h2 style="text-align:center; color:#ffd700; font-size:1.1rem; margin-bottom:1.5rem;">
+          Final Scoreboard
+        </h2>
+        <table style="width:100%; border-collapse:collapse; font-size:0.95rem;">
+          <thead>
+            <tr style="border-bottom:2px solid #555;">
+              <th style="padding:8px 12px; text-align:left; color:#888;"></th>
+              <th style="padding:8px 16px; color:#4488ff;">Player</th>
+              <th style="padding:8px 16px; color:#ff4444;">AI</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${row('Units Produced', p1.unitsProduced, p2.unitsProduced)}
+            ${row('Units Lost', p1.unitsLost, p2.unitsLost)}
+            ${row('Cities at End', p1.citiesAtEnd, p2.citiesAtEnd)}
+            ${row('Total Income Earned', '$' + p1.totalIncomeEarned, '$' + p2.totalIncomeEarned)}
+          </tbody>
+        </table>
+        <div style="text-align:center; margin-top:1.5rem;">
+          <button id="return-menu" style="${MENU_BTN_STYLE}">Return to Main Menu</button>
+        </div>
+      </div>
+    `;
+
     el.querySelector('#return-menu')?.addEventListener('click', () => {
       el.remove();
       onReturnToMenu();

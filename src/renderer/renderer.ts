@@ -7,7 +7,7 @@
  */
 
 import { Application, Container, Assets, Text, TextStyle } from 'pixi.js';
-import type { GameState, PlayerId, TileCoord, MapSizeOption } from '../game/types';
+import type { GameState, PlayerId, TileCoord, MapSizeOption, GameStats } from '../game/types';
 import { tileId } from '../game/board';
 import { TilemapRenderer } from './tilemap';
 import { UnitsRenderer } from './units';
@@ -131,8 +131,8 @@ export class GameRenderer {
     this.uiRenderer.hideMainMenu();
   }
 
-  showVictoryScreen(winner: PlayerId, onReturnToMenu: () => void): void {
-    this.uiRenderer.showVictoryScreen(winner, onReturnToMenu);
+  showScoreboard(stats: Record<PlayerId, GameStats>, winner: PlayerId, onReturnToMenu: () => void): void {
+    this.uiRenderer.showScoreboard(stats, winner, onReturnToMenu);
   }
 
   getApp(): Application {
