@@ -99,6 +99,130 @@ const defaultConfig: SearchConfig = {
 };
 
 // ---------------------------------------------------------------------------
+// Phase 3-5: Capture Prioritization Tests (T001-T007)
+// ---------------------------------------------------------------------------
+
+const CAPTURE_BONUS = 4000;
+const MID_CAPTURE_HOLD_SCORE = 8000;
+
+describe('AI Capture Prioritization', () => {
+  it('T001 [US1]: capture move for adjacent undefended neutral settlement has orderScore >= CAPTURE_BONUS + 1000 and is highest-scored move', () => {
+    const state = makeGameState({
+      units: {
+        'ai-inf': makeUnit('ai-inf', 'player2', 'infantry', '3,3'),
+      },
+      settlements: {
+        'neutral-town': makeSettlement('neutral-town', '3,4', 'town', 'neutral'),
+        'city-ai': makeSettlement('city-ai', '0,0', 'city', 'player2'),
+        'city-p1': makeSettlement('city-p1', '7,7', 'city', 'player1'),
+      },
+    });
+
+    const candidates = generateCandidateActions(state, 'ai-inf', defaultConfig);
+    const moveCandidates = candidates.filter(c => c.action.type === 'move' && c.action.path.length > 0);
+
+    const captureMove = moveCandidates.find(c => {
+      if (c.action.type !== 'move') return false;
+      const dest = c.action.path[c.action.path.length - 1];
+      return dest?.row === 3 && dest?.col === 4;
+    });
+
+    expect(captureMove).toBeDefined();
+    expect(captureMove!.orderScore).toBeGreaterThanOrEqual(CAPTURE_BONUS + 1000);
+    const maxMoveScore = Math.max(...moveCandidates.map(c => c.orderScore));
+    expect(captureMove!.orderScore).toBe(maxMoveScore);
+  });
+
+  it('T002 [US1]: mid-capture hold-position has orderScore === MID_CAPTURE_HOLD_SCORE', () => {
+    const state = makeGameState({
+      units: {
+        'ai-inf': makeUnit('ai-inf', 'player2', 'infantry', '3,3'),
+      },
+      settlements: {
+        'contested-town': {
+          ...makeSettlement('contested-town', '3,3', 'town', 'neutral'),
+          captureProgress: 1,
+          capturingUnit: 'ai-inf',
+        },
+        'city-ai': makeSettlement('city-ai', '0,0', 'city', 'player2'),
+        'city-p1': makeSettlement('city-p1', '7,7', 'city', 'player1'),
+      },
+    });
+
+    const candidates = generateCandidateActions(state, 'ai-inf', defaultConfig);
+    const holdCandidate = candidates.find(c => c.action.type === 'move' && c.action.path.length === 0);
+
+    expect(holdCandidate).toBeDefined();
+    expect(holdCandidate!.orderScore).toBe(MID_CAPTURE_HOLD_SCORE);
+  });
+
+  it('T005 [US2]: capture move score exceeds best non-capture move score', () => {
+    const state = makeGameState({
+      units: {
+        'ai-inf': makeUnit('ai-inf', 'player2', 'infantry', '3,3'),
+      },
+      settlements: {
+        'neutral-town': makeSettlement('neutral-town', '3,4', 'town', 'neutral'),
+        'city-ai': makeSettlement('city-ai', '0,0', 'city', 'player2'),
+        'city-p1': makeSettlement('city-p1', '7,7', 'city', 'player1'),
+      },
+    });
+
+    const candidates = generateCandidateActions(state, 'ai-inf', defaultConfig);
+    const moveCandidates = candidates.filter(c => c.action.type === 'move' && c.action.path.length > 0);
+
+    const captureMove = moveCandidates.find(c => {
+      if (c.action.type !== 'move') return false;
+      const dest = c.action.path[c.action.path.length - 1];
+      return dest?.row === 3 && dest?.col === 4;
+    });
+
+    const nonCaptureMoves = moveCandidates.filter(c => {
+      if (c.action.type !== 'move') return false;
+      const dest = c.action.path[c.action.path.length - 1];
+      return !(dest?.row === 3 && dest?.col === 4);
+    });
+
+    expect(captureMove).toBeDefined();
+    const bestNonCaptureScore = nonCaptureMoves.length > 0
+      ? Math.max(...nonCaptureMoves.map(c => c.orderScore))
+      : 0;
+    expect(captureMove!.orderScore).toBeGreaterThan(bestNonCaptureScore);
+  });
+
+  it('T007 [US3]: second AI unit does not get CAPTURE_BONUS when a friendly unit is already capturing the settlement', () => {
+    // ai-inf1 is registered as capturingUnit for neutral-town (captureProgress=1),
+    // but lives on a different tile — artificial state to test the guard independently
+    // of the unitId occupancy filter.
+    const state = makeGameState({
+      units: {
+        'ai-inf1': makeUnit('ai-inf1', 'player2', 'infantry', '2,4'),
+        'ai-inf2': makeUnit('ai-inf2', 'player2', 'infantry', '3,5'),
+      },
+      settlements: {
+        'neutral-town': {
+          ...makeSettlement('neutral-town', '3,4', 'town', 'neutral'),
+          captureProgress: 1,
+          capturingUnit: 'ai-inf1',
+        },
+        'city-ai': makeSettlement('city-ai', '0,0', 'city', 'player2'),
+        'city-p1': makeSettlement('city-p1', '7,7', 'city', 'player1'),
+      },
+    });
+
+    const candidates2 = generateCandidateActions(state, 'ai-inf2', defaultConfig);
+    const captureMove2 = candidates2.find(c => {
+      if (c.action.type !== 'move') return false;
+      const dest = c.action.path[c.action.path.length - 1];
+      return dest?.row === 3 && dest?.col === 4;
+    });
+
+    // ai-inf2 must NOT get CAPTURE_BONUS since a friendly unit (ai-inf1) is already capturing
+    expect(captureMove2?.orderScore ?? 0).toBeLessThanOrEqual(1020);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Phase 4 / US3 Tests (T016-T023)
 // ---------------------------------------------------------------------------
 

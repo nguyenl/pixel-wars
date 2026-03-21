@@ -15,6 +15,7 @@ Auto-generated from all feature plans. Last updated: 2026-03-19
 - TypeScript 5.x + pixi.js 8.x (Graphics primitives for tile rendering) (011-remove-grid-lines)
 - TypeScript 5.x + pixi.js 8.x (rendering, Text/Container for damage numbers), DOM overlays (existing pattern for UI panels) (012-game-ui-enhancements)
 - TypeScript 5.x + pixi.js 8.x (rendering), simplex-noise 4.x (map gen, unchanged), Vitest 2.x (tests) (013-strategic-ai-overhaul)
+- TypeScript 5.x + pixi.js 8.x (rendering only — AI logic is pure game state), simplex-noise 4.x (map gen, unchanged), Vitest 2.x (tests) (015-ai-capture-priority)
 
 - TypeScript 5.x + PixiJS 8.x (`pixi.js`, `@pixi/tilemap`), `simplex-noise` 4.x (001-tile-strategy-game)
 
@@ -34,9 +35,9 @@ npm test && npm run lint
 TypeScript 5.x: Follow standard conventions
 
 ## Recent Changes
+- 015-ai-capture-priority: Added TypeScript 5.x + pixi.js 8.x (rendering only — AI logic is pure game state), simplex-noise 4.x (map gen, unchanged), Vitest 2.x (tests)
 - 013-strategic-ai-overhaul: Added TypeScript 5.x + pixi.js 8.x (rendering), simplex-noise 4.x (map gen, unchanged), Vitest 2.x (tests)
 - 012-game-ui-enhancements: Added TypeScript 5.x + pixi.js 8.x (rendering, Text/Container for damage numbers), DOM overlays (existing pattern for UI panels)
-- 011-remove-grid-lines: Added TypeScript 5.x + pixi.js 8.x (Graphics primitives for tile rendering)
 
 
 <!-- MANUAL ADDITIONS START -->
