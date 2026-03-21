@@ -5,12 +5,25 @@
  * Generates top-K candidate actions per unit, sorted by priority:
  *   1. Kill shots (lethal attacks)
  *   2. Attacks by expected damage
- *   3. Moves toward objectives
+ *   3. Moves toward objectives (with CAPTURE_BONUS for immediately capturable settlements)
  *   4. Production actions
- *   5. Hold position (no-op baseline)
+ *   5. Hold position (no-op baseline; MID_CAPTURE_HOLD_SCORE if actively capturing)
+ *
+ * Scoring constants:
+ *   CAPTURE_BONUS (4000): added to a move that lands on an undefended non-owned settlement,
+ *     placing capture just below non-lethal attacks (5000) but well above exploration (~1020).
+ *   MID_CAPTURE_HOLD_SCORE (8000): replaces the 0 hold-score when a unit is mid-capture,
+ *     keeping it on the settlement unless a kill shot is available (10000+).
+ *
+ * Duplicate-capture guard: if a settlement already has a friendly unit actively capturing it
+ *   (captureProgress > 0 and capturingUnit belongs to the same owner), CAPTURE_BONUS is
+ *   withheld from other units so they pursue different objectives.
  */
 
 import type { GameState, PlayerId, Action, Unit, SearchConfig, CandidateAction } from '../types';
+
+const CAPTURE_BONUS = 4000;
+const MID_CAPTURE_HOLD_SCORE = 8000;
 import { UNIT_CONFIG } from '../constants';
 import { chebyshevDistance } from '../board';
 import { reachableMap, getAttackableTargets, findPath } from '../pathfinding';
@@ -86,8 +99,22 @@ export function generateCandidateActions(
           }
         }
 
+        // T003/T008: bonus for immediately capturable settlements; duplicate-capture guard
+        let captureBonus = 0;
+        if (destTile.settlementId) {
+          const settlement = state.settlements[destTile.settlementId];
+          if (settlement && settlement.owner !== unit.owner) {
+            const alreadyClaimed =
+              settlement.capturingUnit !== null &&
+              state.units[settlement.capturingUnit]?.owner === unit.owner;
+            if (!alreadyClaimed) {
+              captureBonus = CAPTURE_BONUS;
+            }
+          }
+        }
+
         const action: Action = { type: 'move', unitId, path };
-        moveCandidates.push({ action, unitId, orderScore: 1000 + bestObjScore });
+        moveCandidates.push({ action, unitId, orderScore: 1000 + bestObjScore + captureBonus });
       }
 
       // Sort move candidates and take top ones
@@ -98,10 +125,19 @@ export function generateCandidateActions(
   }
 
   // --- Hold position (always included as baseline) ---
+  // T004: if the unit is mid-capture, holding is high-priority so the capture completes
+  let holdScore = 0;
+  const currentTile = state.tiles[unit.tileId];
+  if (currentTile?.settlementId) {
+    const currentSettlement = state.settlements[currentTile.settlementId];
+    if (currentSettlement && currentSettlement.captureProgress > 0 && currentSettlement.capturingUnit === unitId) {
+      holdScore = MID_CAPTURE_HOLD_SCORE;
+    }
+  }
   candidates.push({
     action: { type: 'move', unitId, path: [] },
     unitId,
-    orderScore: 0,
+    orderScore: holdScore,
   });
 
   // Sort all candidates by orderScore descending and truncate

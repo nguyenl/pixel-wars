@@ -2,6 +2,10 @@
 
 A browser-based pixel strategy game built with TypeScript and PixiJS. Command armies on procedurally generated tile maps, capture territory, and outmaneuver AI opponents in turn-based tactical combat.
 
+## Latest Demo Version
+
+Game is playable and can be found here: https://nguyenl.github.io/pixel-wars/
+
 ## Table of Contents
 
 - [Prerequisites](#prerequisites)
