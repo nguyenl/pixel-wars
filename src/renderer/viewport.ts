@@ -2,8 +2,10 @@
  * src/renderer/viewport.ts
  *
  * Pure math functions for viewport coordinate transforms.
- * No PixiJS imports — kept pure for unit testability.
+ * No Three.js imports — kept pure for unit testability.
  */
+
+import type { TileCoord } from '../game/types';
 
 /**
  * Computes clamped pan position given current state and canvas/map dimensions.
@@ -39,6 +41,52 @@ export function clampPan(
   }
 
   return { x, y };
+}
+
+/**
+ * Grid tile coord → Three.js world position (center of tile, Y at BoxGeometry center).
+ *   x = col * tileSize
+ *   y = terrainHeight / 2  (BoxGeometry is centered at its own origin)
+ *   z = row * tileSize
+ */
+export function gridToWorld(
+  coord: TileCoord,
+  terrainHeight: number,
+  tileSize: number,
+): { x: number; y: number; z: number } {
+  return {
+    x: coord.col * tileSize,
+    y: terrainHeight / 2,
+    z: coord.row * tileSize,
+  };
+}
+
+/**
+ * Three.js world XZ → nearest grid coord.
+ */
+export function worldToGrid(
+  worldX: number,
+  worldZ: number,
+  tileSize: number,
+): TileCoord {
+  return {
+    col: Math.round(worldX / tileSize),
+    row: Math.round(worldZ / tileSize),
+  };
+}
+
+/**
+ * Client pixel → Normalized Device Coordinates for Three.js raycasting.
+ */
+export function clientToNDC(
+  clientX: number,
+  clientY: number,
+  canvas: HTMLCanvasElement,
+): { x: number; y: number } {
+  return {
+    x:  (clientX / canvas.clientWidth)  * 2 - 1,
+    y: -(clientY / canvas.clientHeight) * 2 + 1,
+  };
 }
 
 /**

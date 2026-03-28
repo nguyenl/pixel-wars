@@ -1,300 +1,223 @@
 /**
  * src/renderer/tilemap.ts
  *
- * Tile grid rendering using PixiJS Graphics primitives.
- * Uses colored rectangles as terrain placeholders (no sprite assets required).
- * Also renders settlement icons and movement/attack highlights.
+ * Tile grid rendering using Three.js BoxGeometry meshes.
+ * Terrain tiles render as colored 3D boxes with elevation-based heights.
+ * Also renders settlement markers and movement/attack highlights.
+ *
+ * T008: PixiJS imports removed; Three.js stub preserving public method signatures.
+ * Full implementation in T015, T020, T021, T022.
  */
 
-import { Container, Graphics } from 'pixi.js';
-import type { GameState, Tile, TerrainType, TileCoord } from '../game/types';
+import * as THREE from 'three';
+import type { GameState, PlayerId, TerrainType, TileCoord } from '../game/types';
 
-const TERRAIN_COLORS: Record<TerrainType, number> = {
+/** Terrain elevation heights in Three.js world units (BoxGeometry height). */
+export const TERRAIN_HEIGHT: Record<TerrainType, number> = {
+  water:     2,
+  plains:    4,
+  grassland: 5,
+  forest:    8,
+  mountain:  18,
+};
+
+/** Terrain base colors for MeshLambertMaterial. */
+export const TERRAIN_MATERIAL_COLOR: Record<TerrainType, number> = {
+  water:     0x2060c0,
   plains:    0x90c060,
   grassland: 0x60a040,
   forest:    0x206020,
   mountain:  0x808080,
-  water:     0x2060c0,
 };
 
 const HIGHLIGHT_MOVE_COLOR    = 0x44aaff;
 const HIGHLIGHT_ATTACK_COLOR  = 0xff4444;
-const OWNER_COLORS: Record<string, number> = {
+
+export const OWNER_COLORS: Record<string, number> = {
   player1: 0x4488ff,
   player2: 0xff4444,
   neutral: 0xaaaaaa,
 };
 
-export class TilemapRenderer {
-  private container: Container;
-  private tileGraphics: Map<string, Graphics> = new Map();
-  private settlementGraphics: Map<string, Graphics> = new Map();
-  private highlightLayer: Container;
+export interface TileRenderEntry {
+  tileMesh: THREE.Mesh;
+  fogMesh: THREE.Mesh;
+  terrainHeight: number;
+}
 
-  constructor(private parentContainer: Container, private tileSize: number) {
-    this.container = new Container();
-    this.highlightLayer = new Container();
-    this.parentContainer.addChild(this.container);
-    this.parentContainer.addChild(this.highlightLayer);
+export class TilemapRenderer {
+  private scene: THREE.Scene;
+  private tileEntries: Map<string, TileRenderEntry> = new Map();
+  private settlementGroup: THREE.Group;
+  private highlightGroup: THREE.Group;
+  readonly tileGroup: THREE.Group;
+
+  constructor(scene: THREE.Scene, private tileSize: number) {
+    this.scene = scene;
+    this.tileGroup = new THREE.Group();
+    this.settlementGroup = new THREE.Group();
+    this.highlightGroup = new THREE.Group();
+    scene.add(this.tileGroup);
+    scene.add(this.settlementGroup);
+    scene.add(this.highlightGroup);
   }
 
   render(
     state: GameState,
+    humanPlayerId: PlayerId,
     reachableCoords: TileCoord[],
     attackableCoords: TileCoord[],
     hoverCoord: TileCoord | null = null,
   ): void {
     this.renderTiles(state);
-    this.renderSettlements(state);
+    this.renderSettlements(state, humanPlayerId);
     this.renderHighlights(reachableCoords, attackableCoords, hoverCoord);
+  }
+
+  getTileEntry(tileId: string): TileRenderEntry | undefined {
+    return this.tileEntries.get(tileId);
   }
 
   private renderTiles(state: GameState): void {
     const { tileSize } = this;
 
-    for (const tileId of state.tileOrder) {
-      const tile = state.tiles[tileId];
-      let g = this.tileGraphics.get(tileId);
-      if (!g) {
-        g = new Graphics();
-        this.container.addChild(g);
-        this.tileGraphics.set(tileId, g);
-      }
-      const x = tile.coord.col * tileSize;
-      const y = tile.coord.row * tileSize;
-      g.clear();
-      g.rect(x, y, tileSize, tileSize);
-      g.fill({ color: TERRAIN_COLORS[tile.terrain] });
-      this.renderTerrainDetail(tile, g, x, y, tileSize);
-    }
-  }
+    for (const id of state.tileOrder) {
+      const tile = state.tiles[id];
+      if (!tile) continue;
 
-  private renderTerrainDetail(tile: Tile, g: Graphics, x: number, y: number, tileSize: number): void {
-    // Deterministic pseudo-random offset per tile
-    const hash = (tile.coord.row * 31 + tile.coord.col * 17);
-    const inset = 4;
+      if (!this.tileEntries.has(id)) {
+        const h = TERRAIN_HEIGHT[tile.terrain];
+        // Tile mesh
+        const geo = new THREE.BoxGeometry(tileSize, h, tileSize);
+        const mat = new THREE.MeshLambertMaterial({ color: TERRAIN_MATERIAL_COLOR[tile.terrain] });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.set(tile.coord.col * tileSize, h / 2, tile.coord.row * tileSize);
+        mesh.userData.coord = tile.coord;
+        this.tileGroup.add(mesh);
 
-    switch (tile.terrain) {
-      case 'plains': {
-        // 3 small grass tufts ("V" shapes)
-        g.setStrokeStyle({ color: 0xb0d870, width: 1 });
-        for (let i = 0; i < 3; i++) {
-          const ox = x + inset + ((hash + i * 7) % (tileSize - inset * 2));
-          const oy = y + inset + ((hash + i * 13) % (tileSize - inset * 2));
-          g.moveTo(ox - 2, oy).lineTo(ox, oy - 4).moveTo(ox, oy - 4).lineTo(ox + 2, oy);
-        }
-        g.stroke();
-        break;
-      }
-      case 'grassland': {
-        // 4 dense grass tufts + 1 bush circle
-        g.setStrokeStyle({ color: 0x80c050, width: 1 });
-        for (let i = 0; i < 4; i++) {
-          const ox = x + inset + ((hash + i * 11) % (tileSize - inset * 2));
-          const oy = y + inset + ((hash + i * 9) % (tileSize - inset * 2));
-          g.moveTo(ox - 2, oy).lineTo(ox, oy - 4).moveTo(ox, oy - 4).lineTo(ox + 2, oy);
-        }
-        g.stroke();
-        // Bush
-        const bx = x + inset + ((hash * 3) % (tileSize - inset * 2));
-        const by = y + inset + ((hash * 5) % (tileSize - inset * 2));
-        g.circle(bx, by, 3);
-        g.fill({ color: 0x508030 });
-        break;
-      }
-      case 'forest': {
-        // 2-3 dark tree canopies in the upper half
-        const count = 2 + (hash % 2);
-        for (let i = 0; i < count; i++) {
-          const cx = x + inset + ((hash + i * 13) % (tileSize - inset * 2));
-          const cy = y + inset + ((hash + i * 7) % Math.floor((tileSize - inset * 2) / 2));
-          const r = 4 + (hash + i) % 3;
-          g.circle(cx, cy, r);
-          g.fill({ color: 0x104010 });
-        }
-        break;
-      }
-      case 'mountain': {
-        // Filled triangle peak
-        const cx = x + tileSize / 2 + ((hash % 5) - 2);
-        g.poly([cx, y + 4, cx + 8, y + tileSize - 6, cx - 8, y + tileSize - 6]);
-        g.fill({ color: 0x505050 });
-        break;
-      }
-      case 'water': {
-        // 2 wave ripple lines
-        g.setStrokeStyle({ color: 0x4090e0, width: 1 });
-        const third = tileSize / 3;
-        for (let i = 0; i < 2; i++) {
-          const wy = y + third + i * (third * 0.5) + ((hash + i * 3) % 4);
-          const wx = x + inset + ((hash + i * 5) % 4);
-          g.moveTo(wx, wy).lineTo(wx + tileSize * 0.4, wy);
-        }
-        g.stroke();
-        break;
+        // Fog mesh — box matching the terrain tile exactly so sides of mountains are covered
+        const fogGeo = new THREE.BoxGeometry(tileSize, h, tileSize);
+        const fogMat = new THREE.MeshBasicMaterial({
+          color: 0x000000,
+          transparent: true,
+          depthWrite: false,
+        });
+        const fogMesh = new THREE.Mesh(fogGeo, fogMat);
+        fogMesh.position.set(tile.coord.col * tileSize, h / 2, tile.coord.row * tileSize);
+        this.scene.add(fogMesh);
+
+        this.tileEntries.set(id, { tileMesh: mesh, fogMesh, terrainHeight: h });
       }
     }
   }
 
-  private renderSettlements(state: GameState): void {
-    const { tileSize } = this;
-
-    // Clear old settlement graphics
-    for (const [, g] of this.settlementGraphics) {
-      g.clear();
+  private renderSettlements(state: GameState, humanPlayerId: PlayerId): void {
+    // Clear old settlement meshes
+    while (this.settlementGroup.children.length > 0) {
+      const child = this.settlementGroup.children[0];
+      this.settlementGroup.remove(child);
     }
+
+    const fog = state.fog[humanPlayerId];
 
     for (const settlement of Object.values(state.settlements)) {
       const tile = state.tiles[settlement.tileId];
       if (!tile) continue;
 
-      let g = this.settlementGraphics.get(settlement.id);
-      if (!g) {
-        g = new Graphics();
-        this.container.addChild(g);
-        this.settlementGraphics.set(settlement.id, g);
-      }
+      // Don't render settlements in fully hidden tiles
+      if ((fog[settlement.tileId] ?? 'hidden') === 'hidden') continue;
 
-      const x = tile.coord.col * tileSize;
-      const y = tile.coord.row * tileSize;
+      const entry = this.tileEntries.get(settlement.tileId);
+      const baseH = entry ? entry.terrainHeight : TERRAIN_HEIGHT[tile.terrain];
+      const cx = tile.coord.col * this.tileSize;
+      const cz = tile.coord.row * this.tileSize;
       const ownerColor = OWNER_COLORS[settlement.owner] ?? OWNER_COLORS['neutral'];
 
-      g.clear();
-
       if (settlement.type === 'city') {
-        this.drawCityGraphic(g, x, y, tileSize, ownerColor);
+        this.drawCityGraphic(cx, baseH, cz, ownerColor);
       } else {
-        this.drawTownGraphic(g, x, y, tileSize, ownerColor);
+        this.drawTownGraphic(cx, baseH, cz, ownerColor);
       }
 
-      // Capture progress bar (shown when captureProgress > 0)
+      // Capture progress bar (thin box above tile)
       if (settlement.captureProgress > 0) {
         const capturingUnit = settlement.capturingUnit
           ? state.units[settlement.capturingUnit]
           : null;
         const barColor = capturingUnit?.owner === 'player1' ? 0x4488ff : 0xff4444;
-        const barWidth = tileSize - 4;
-        const barHeight = 3;
-        const barX = x + 2;
-        const barY = y + 1;
-        // Background track
-        g.rect(barX, barY, barWidth, barHeight);
-        g.fill({ color: 0x222222, alpha: 0.7 });
-        // Filled portion (50% at progress 1, 100% at progress 2 — but 2 means captured)
-        const fillFraction = settlement.captureProgress / 2;
-        g.rect(barX, barY, barWidth * fillFraction, barHeight);
-        g.fill({ color: barColor, alpha: 0.9 });
+        const fraction = settlement.captureProgress / 2;
+        const barW = this.tileSize * fraction;
+        const barGeo = new THREE.BoxGeometry(barW, 0.5, 2);
+        const barMat = new THREE.MeshBasicMaterial({ color: barColor });
+        const bar = new THREE.Mesh(barGeo, barMat);
+        bar.position.set(cx - this.tileSize / 2 + barW / 2, baseH + 0.5, cz - this.tileSize / 2 + 1);
+        this.settlementGroup.add(bar);
       }
     }
   }
 
-  /** Draw a city as a cluster of 3-4 buildings with a central tower */
-  private drawCityGraphic(g: Graphics, x: number, y: number, tileSize: number, ownerColor: number): void {
-    const cx = x + tileSize / 2;
-    const baseY = y + tileSize * 0.85;
-    const buildingColor = 0x888888;
-    const width = tileSize * 0.6;
-    const halfW = width / 2;
-
-    // Building 1 (left, short)
-    const b1x = cx - halfW;
-    const b1h = tileSize * 0.3;
-    const b1w = width * 0.22;
-    g.rect(b1x, baseY - b1h, b1w, b1h);
-    g.fill({ color: buildingColor });
-    g.stroke({ color: ownerColor, width: 1.5 });
-
-    // Building 2 (center-left, medium)
-    const b2x = b1x + b1w + 1;
-    const b2h = tileSize * 0.4;
-    const b2w = width * 0.22;
-    g.rect(b2x, baseY - b2h, b2w, b2h);
-    g.fill({ color: buildingColor });
-    g.stroke({ color: ownerColor, width: 1.5 });
-
-    // Building 3 (center tower, tallest)
-    const b3w = width * 0.24;
-    const b3x = b2x + b2w + 1;
-    const b3h = tileSize * 0.55;
-    g.rect(b3x, baseY - b3h, b3w, b3h);
-    g.fill({ color: 0x777777 });
-    g.stroke({ color: ownerColor, width: 1.5 });
-
-    // Building 4 (right, medium-short)
-    const b4x = b3x + b3w + 1;
-    const b4h = tileSize * 0.32;
-    const b4w = width * 0.22;
-    g.rect(b4x, baseY - b4h, b4w, b4h);
-    g.fill({ color: buildingColor });
-    g.stroke({ color: ownerColor, width: 1.5 });
+  private drawCityGraphic(cx: number, baseH: number, cz: number, ownerColor: number): void {
+    const ts = this.tileSize;
+    const buildings = [
+      { w: ts * 0.13, h: ts * 0.3,  dx: -ts * 0.25 },
+      { w: ts * 0.13, h: ts * 0.4,  dx: -ts * 0.08 },
+      { w: ts * 0.15, h: ts * 0.55, dx:  ts * 0.0  },
+      { w: ts * 0.13, h: ts * 0.32, dx:  ts * 0.17 },
+    ];
+    for (const b of buildings) {
+      const geo = new THREE.BoxGeometry(b.w, b.h, b.w);
+      const mat = new THREE.MeshLambertMaterial({ color: ownerColor });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(cx + b.dx, baseH + b.h / 2, cz);
+      this.settlementGroup.add(mesh);
+    }
   }
 
-  /** Draw a town as 2 small houses with triangular roofs */
-  private drawTownGraphic(g: Graphics, x: number, y: number, tileSize: number, ownerColor: number): void {
-    const cx = x + tileSize / 2;
-    const baseY = y + tileSize * 0.85;
-    const buildingColor = 0x999999;
-    const roofColor = 0x885533;
-    const houseW = tileSize * 0.16;
-    const houseH = tileSize * 0.2;
-    const gap = tileSize * 0.06;
-
-    // House 1 (left)
-    const h1x = cx - houseW - gap / 2;
-    // Walls
-    g.rect(h1x, baseY - houseH, houseW, houseH);
-    g.fill({ color: buildingColor });
-    g.stroke({ color: ownerColor, width: 1.5 });
-    // Roof (triangle)
-    g.poly([h1x - 1, baseY - houseH, h1x + houseW / 2, baseY - houseH - tileSize * 0.14, h1x + houseW + 1, baseY - houseH]);
-    g.fill({ color: roofColor });
-    g.stroke({ color: ownerColor, width: 1 });
-
-    // House 2 (right)
-    const h2x = cx + gap / 2;
-    // Walls
-    g.rect(h2x, baseY - houseH, houseW, houseH);
-    g.fill({ color: buildingColor });
-    g.stroke({ color: ownerColor, width: 1.5 });
-    // Roof (triangle)
-    g.poly([h2x - 1, baseY - houseH, h2x + houseW / 2, baseY - houseH - tileSize * 0.14, h2x + houseW + 1, baseY - houseH]);
-    g.fill({ color: roofColor });
-    g.stroke({ color: ownerColor, width: 1 });
+  private drawTownGraphic(cx: number, baseH: number, cz: number, ownerColor: number): void {
+    const ts = this.tileSize;
+    const houses = [
+      { dx: -ts * 0.12, w: ts * 0.12, h: ts * 0.2 },
+      { dx:  ts * 0.12, w: ts * 0.12, h: ts * 0.2 },
+    ];
+    for (const house of houses) {
+      const geo = new THREE.BoxGeometry(house.w, house.h, house.w);
+      const mat = new THREE.MeshLambertMaterial({ color: ownerColor });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(cx + house.dx, baseH + house.h / 2, cz);
+      this.settlementGroup.add(mesh);
+    }
   }
 
-  private renderHighlights(reachable: TileCoord[], attackable: TileCoord[], hoverCoord: TileCoord | null = null): void {
-    this.highlightLayer.removeChildren();
+  private renderHighlights(
+    reachable: TileCoord[],
+    attackable: TileCoord[],
+    hoverCoord: TileCoord | null,
+  ): void {
+    while (this.highlightGroup.children.length > 0) {
+      const child = this.highlightGroup.children[0];
+      this.highlightGroup.remove(child);
+    }
+
     const { tileSize } = this;
 
-    for (const coord of reachable) {
-      const g = new Graphics();
-      g.rect(coord.col * tileSize, coord.row * tileSize, tileSize, tileSize);
-      g.fill({ color: HIGHLIGHT_MOVE_COLOR, alpha: 0.35 });
-      this.highlightLayer.addChild(g);
-    }
+    const addOverlay = (coord: TileCoord, color: number, alpha: number) => {
+      const entry = this.tileEntries.get(`${coord.row},${coord.col}`);
+      const tH = entry ? entry.terrainHeight : 4;
+      const geo = new THREE.BoxGeometry(tileSize, 0.3, tileSize);
+      const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: alpha, depthWrite: false });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(coord.col * tileSize, tH + 0.15, coord.row * tileSize);
+      this.highlightGroup.add(mesh);
+    };
 
-    for (const coord of attackable) {
-      const g = new Graphics();
-      g.rect(coord.col * tileSize, coord.row * tileSize, tileSize, tileSize);
-      g.fill({ color: HIGHLIGHT_ATTACK_COLOR, alpha: 0.4 });
-      this.highlightLayer.addChild(g);
-    }
+    for (const coord of reachable) addOverlay(coord, HIGHLIGHT_MOVE_COLOR, 0.35);
+    for (const coord of attackable) addOverlay(coord, HIGHLIGHT_ATTACK_COLOR, 0.4);
 
-    // Hover highlight
     if (hoverCoord) {
       const isReachable = reachable.some(c => c.row === hoverCoord.row && c.col === hoverCoord.col);
       const isAttackable = attackable.some(c => c.row === hoverCoord.row && c.col === hoverCoord.col);
-      if (isReachable) {
-        const g = new Graphics();
-        g.rect(hoverCoord.col * tileSize, hoverCoord.row * tileSize, tileSize, tileSize);
-        g.fill({ color: 0x88ccff, alpha: 0.55 });
-        this.highlightLayer.addChild(g);
-      } else if (isAttackable) {
-        const g = new Graphics();
-        g.rect(hoverCoord.col * tileSize, hoverCoord.row * tileSize, tileSize, tileSize);
-        g.fill({ color: 0xff8888, alpha: 0.55 });
-        this.highlightLayer.addChild(g);
-      }
+      if (isReachable) addOverlay(hoverCoord, 0x88ccff, 0.55);
+      else if (isAttackable) addOverlay(hoverCoord, 0xff8888, 0.55);
     }
   }
 }

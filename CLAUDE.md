@@ -1,23 +1,13 @@
 # pixel-wars Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-03-19
+Auto-generated from all feature plans. Last updated: 2026-03-28
 
 ## Active Technologies
-- TypeScript 5.x + PixiJS 8.x, `@pixi/tilemap` 4.x, `simplex-noise` 4.x, Vitest 2.x (002-game-improvements)
-- N/A — browser-only, no persistence (002-game-improvements)
-- TypeScript 5.x + PixiJS 8.x (`pixi.js`, `@pixi/tilemap`), `simplex-noise` 4.x, Vitest 2.x (003-improve-ai-behavior)
-- TypeScript 5.x + PixiJS 8.x (`pixi.js`), Vitest 2.x (004-unit-animations-combat-fixes)
-- TypeScript 5.x + PixiJS 8.x (`pixi.js`), `simplex-noise` 4.x (005-aggressive-ai-spawn-fix)
-- TypeScript 5.x + pixi.js 8.x (rendering only — search is pure game logic), simplex-noise 4.x (map generation only) (006-alpha-beta-ai)
-- TypeScript 5.x + pixi.js 8.x (rendering), simplex-noise 4.x (map generation) (007-ai-visuals-upgrades)
-- TypeScript 5.x + pixi.js 8.x (rendering, Container transforms), no new dependencies required (008-map-pan-zoom-fix)
-- TypeScript 5.x + pixi.js 8.x, @pixi/tilemap 4.x, simplex-noise 4.x (009-readme-gh-pages)
-- TypeScript 5.x + pixi.js 8.x (Graphics primitives for tile rendering) (011-remove-grid-lines)
-- TypeScript 5.x + pixi.js 8.x (rendering, Text/Container for damage numbers), DOM overlays (existing pattern for UI panels) (012-game-ui-enhancements)
-- TypeScript 5.x + pixi.js 8.x (rendering), simplex-noise 4.x (map gen, unchanged), Vitest 2.x (tests) (013-strategic-ai-overhaul)
-- TypeScript 5.x + pixi.js 8.x (rendering only — AI logic is pure game state), simplex-noise 4.x (map gen, unchanged), Vitest 2.x (tests) (015-ai-capture-priority)
+- **Current rendering stack**: TypeScript 5.x + `three` + `@types/three` (3D WebGL isometric rendering) (016-canvas-to-webgl)
+- TypeScript 5.x + `simplex-noise` 4.x (map generation), Vitest 2.x (tests)
+- DOM overlays for HUD (ui.ts unchanged from earlier features)
 
-- TypeScript 5.x + PixiJS 8.x (`pixi.js`, `@pixi/tilemap`), `simplex-noise` 4.x (001-tile-strategy-game)
+**Note**: `pixi.js` and `@pixi/tilemap` were removed in feature 016-canvas-to-webgl. All historical references to PixiJS in older feature entries below are superseded.
 
 ## Project Structure
 
@@ -35,9 +25,9 @@ npm test && npm run lint
 TypeScript 5.x: Follow standard conventions
 
 ## Recent Changes
-- 015-ai-capture-priority: Added TypeScript 5.x + pixi.js 8.x (rendering only — AI logic is pure game state), simplex-noise 4.x (map gen, unchanged), Vitest 2.x (tests)
-- 013-strategic-ai-overhaul: Added TypeScript 5.x + pixi.js 8.x (rendering), simplex-noise 4.x (map gen, unchanged), Vitest 2.x (tests)
-- 012-game-ui-enhancements: Added TypeScript 5.x + pixi.js 8.x (rendering, Text/Container for damage numbers), DOM overlays (existing pattern for UI panels)
+- 016-canvas-to-webgl: Replaced PixiJS 2D rendering with Three.js WebGL 3D isometric rendering. `pixi.js` + `@pixi/tilemap` removed from dependencies. `three` + `@types/three` added.
+- 015-ai-capture-priority: AI prioritizes capturing bases (now using Three.js rendering)
+- 013-strategic-ai-overhaul: Strategic AI overhaul (now using Three.js rendering)
 
 
 <!-- MANUAL ADDITIONS START -->

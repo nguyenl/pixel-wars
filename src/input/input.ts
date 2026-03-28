@@ -43,7 +43,7 @@ export class InputHandler {
   private pendingPointer: ActivePointer | null = null;
 
   private setupCanvasClick(): void {
-    const canvas = this.renderer.getApp().canvas as HTMLCanvasElement;
+    const canvas = this.renderer.getCanvas();
 
     // Track pointer down for tap detection + long-press tooltip
     canvas.addEventListener('pointerdown', (e) => {
@@ -65,15 +65,9 @@ export class InputHandler {
         this.longPressTimer = setTimeout(() => {
           this.longPressTimer = null;
           const state = this.getState();
-          const rect = canvas.getBoundingClientRect();
-          const offset = this.renderer.getWorldOffset();
-          const tileSize = this.renderer.getTileSize();
-          const zoom = this.renderer.getZoom();
-          const worldX = (clientX - rect.left - offset.x) / zoom;
-          const worldY = (clientY - rect.top - offset.y) / zoom;
-          const col = Math.floor(worldX / tileSize);
-          const row = Math.floor(worldY / tileSize);
-          const tileId = `${row},${col}`;
+          const coord = this.renderer.getTileCoordAtPointer(clientX, clientY);
+          if (!coord) return;
+          const tileId = `${coord.row},${coord.col}`;
           const tile = state.tiles[tileId];
           const humanFog = state.fog[this.humanPlayerId];
           if (tile?.unitId && humanFog[tileId] === 'visible') {
@@ -104,22 +98,12 @@ export class InputHandler {
       }
 
       const state = this.getState();
-      const rect = canvas.getBoundingClientRect();
-      const offset = this.renderer.getWorldOffset();
-      const tileSize = this.renderer.getTileSize();
-      const zoom = this.renderer.getZoom();
-      const worldX = (e.clientX - rect.left - offset.x) / zoom;
-      const worldY = (e.clientY - rect.top - offset.y) / zoom;
 
-      const mapW = state.mapSize.cols * tileSize;
-      const mapH = state.mapSize.rows * tileSize;
-
-      // Mouse hover tooltip — check for unit under cursor
+      // Mouse hover tooltip — check for unit under cursor via raycaster
       if (e.pointerType === 'mouse') {
-        if (worldX >= 0 && worldY >= 0 && worldX < mapW && worldY < mapH) {
-          const col = Math.floor(worldX / tileSize);
-          const row = Math.floor(worldY / tileSize);
-          const tileId = `${row},${col}`;
+        const coord = this.renderer.getTileCoordAtPointer(e.clientX, e.clientY);
+        if (coord) {
+          const tileId = `${coord.row},${coord.col}`;
           const tile = state.tiles[tileId];
           const humanFog = state.fog[this.humanPlayerId];
           if (tile?.unitId && humanFog[tileId] === 'visible') {
@@ -144,14 +128,8 @@ export class InputHandler {
         return;
       }
 
-      if (worldX < 0 || worldY < 0 || worldX >= mapW || worldY >= mapH) {
-        this.renderer.setHoverCoord(null);
-        return;
-      }
-
-      const col = Math.floor(worldX / tileSize);
-      const row = Math.floor(worldY / tileSize);
-      this.renderer.setHoverCoord({ row, col });
+      const hoverCoord = this.renderer.getTileCoordAtPointer(e.clientX, e.clientY);
+      this.renderer.setHoverCoord(hoverCoord);
       this.renderer.render(state, this.humanPlayerId);
     });
 
@@ -181,20 +159,9 @@ export class InputHandler {
       const state = this.getState();
       if (state.phase !== 'orders' || state.currentPlayer !== this.humanPlayerId) return;
 
-      const rect = canvas.getBoundingClientRect();
-      const offset = this.renderer.getWorldOffset();
-      const tileSize = this.renderer.getTileSize();
-      const zoom = this.renderer.getZoom();
-      const worldX = (e.clientX - rect.left - offset.x) / zoom;
-      const worldY = (e.clientY - rect.top - offset.y) / zoom;
-
-      const mapW = state.mapSize.cols * tileSize;
-      const mapH = state.mapSize.rows * tileSize;
-      if (worldX < 0 || worldY < 0 || worldX >= mapW || worldY >= mapH) return;
-
-      const col = Math.floor(worldX / tileSize);
-      const row = Math.floor(worldY / tileSize);
-      this.handleTileClick({ row, col }, state);
+      const coord = this.renderer.getTileCoordAtPointer(e.clientX, e.clientY);
+      if (!coord) return;
+      this.handleTileClick(coord, state);
     });
 
     canvas.addEventListener('pointerleave', (e) => {
