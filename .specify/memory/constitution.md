@@ -1,22 +1,14 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: 2.0.0 → 2.1.0
-Modified principles:
-  - Removed IV. Real-Time Reliability (no longer applicable — single-player, browser-only)
-  - Removed V. Observability (no longer applicable — no server infrastructure)
-Added sections:
-  - IV. Single-Player First, Multiplayer-Ready (new principle)
-  - V. Browser-Only Execution (new principle)
+Version change: 2.1.0 → 2.2.0
 Modified sections:
-  - Technology Standards — removed backend/WebSocket constraints, added browser-only and GitHub Pages constraints
-  - Governance — updated compliance review reference to reflect 5 principles (renumbered)
+  - Technology Standards — replaced "2D canvas" TODO placeholder with finalized Three.js WebGL stack.
+    Removed TODO(TECH_STACK) note. Stack is now committed: TypeScript 5.x + Three.js + Vite.
 Templates requiring updates:
-  ✅ .specify/templates/plan-template.md — Constitution Check section references generic gates; verify no mention of server-side reliability or observability gates.
-  ✅ .specify/templates/spec-template.md — No constitution-specific overrides required.
-  ✅ .specify/templates/tasks-template.md — Task categories remain valid.
-Follow-up TODOs:
-  - TODO(TECH_STACK): No source files or README exist yet; technology choices are marked NEEDS CLARIFICATION in plan-template. Update this constitution once the stack is decided.
+  ✅ .specify/templates/plan-template.md — No changes required.
+  ✅ .specify/templates/spec-template.md — No changes required.
+  ✅ .specify/templates/tasks-template.md — No changes required.
 -->
 
 # Pixel Wars Constitution
@@ -85,19 +77,16 @@ self-containment and aligns with the single-player scope.
 
 ## Technology Standards
 
-The technology stack for Pixel Wars has not yet been committed.
-The following constraints apply regardless of stack:
+The Pixel Wars technology stack is finalized as follows:
 
-- The frontend MUST use a 2D canvas or equivalent primitive for pixel rendering (no DOM-per-pixel).
+- The frontend uses Three.js WebGL for 3D isometric rendering (replaces all 2D canvas approaches).
+- TypeScript 5.x with Vite as the bundler; deployed as static files to GitHub Pages.
 - There is NO backend server. All state and logic lives in the browser.
 - The game MUST be deployable as a set of static files (HTML, CSS, JS, assets) to GitHub Pages.
 - All inter-component contracts MUST be documented (type definitions or interface specs) before
   implementation begins.
 - External dependencies (npm packages, CDN-loaded libraries) MUST be evaluated for browser
   compatibility and bundle-size impact before adoption.
-
-TODO(TECH_STACK): Finalize language, framework, and bundler choices once the initial spike is
-complete. Update this section and bump the constitution version accordingly.
 
 ## Development Workflow
 
@@ -127,4 +116,4 @@ document and any other guideline, the constitution takes precedence.
 **Compliance review**: Every plan's Constitution Check section MUST verify adherence to all five
 Core Principles before implementation begins.
 
-**Version**: 2.1.0 | **Ratified**: 2026-03-13 | **Last Amended**: 2026-03-14
+**Version**: 2.2.0 | **Ratified**: 2026-03-13 | **Last Amended**: 2026-03-28
